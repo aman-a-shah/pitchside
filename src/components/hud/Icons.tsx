@@ -133,3 +133,50 @@ export const IconJump = (p: P) => (
     <path d="M4 5v14l9-7zM15 5v14M20 5v14" />
   </S>
 );
+
+export const IconStats = (p: P) => (
+  <S {...p}>
+    <path d="M4 7h7M13 7h7M4 12h4M16 12h4M4 17h6M14 17h6" />
+    <path d="M12 4v16" />
+  </S>
+);
+
+export const IconPitch = (p: P) => (
+  <S {...p}>
+    <rect x="3" y="6" width="18" height="12" rx="1.6" />
+    <path d="M12 6v12" />
+    <circle cx="12" cy="12" r="2.4" />
+  </S>
+);
+
+export const IconExpand = (p: P) => (
+  <S {...p}>
+    <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" />
+  </S>
+);
+
+export const IconCollapse = (p: P) => (
+  <S {...p}>
+    <path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5" />
+  </S>
+);
+
+export const IconHelp = (p: P) => (
+  <S {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9.4 9.2a2.7 2.7 0 0 1 5.2 1c0 1.8-2.6 2.1-2.6 3.6" />
+    <circle cx="12" cy="17" r="0.4" fill="currentColor" stroke="none" />
+  </S>
+);
+
+export const IconChevronUp = (p: P) => (
+  <S {...p}>
+    <path d="M6 14l6-6 6 6" />
+  </S>
+);
+
+export const IconChevronDown = (p: P) => (
+  <S {...p}>
+    <path d="M6 10l6 6 6-6" />
+  </S>
+);

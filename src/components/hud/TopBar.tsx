@@ -21,9 +21,9 @@ export default function TopBar({ entry }: { entry: CatalogEntry }) {
             {entry.competition}
             {entry.venue ? ` · ${entry.venue}` : ''}
           </span>
-          <span className={styles.fidChip}>
+          <span className={styles.fidChip} title={ir.meta.attribution}>
             <span className={styles.fidDot} />
-            {ir.fidelity === 'synth' ? 'AI-reconstructed' : 'Real tracking'}
+            {ir.fidelity === 'synth' ? 'Simulation' : 'Real data · StatsBomb'}
           </span>
         </div>
       </div>

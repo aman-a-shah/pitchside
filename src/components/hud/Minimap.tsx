@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useMatch } from '@/state/match';
-import { playhead } from '@/state/clock';
+import { playhead, useClock } from '@/state/clock';
 import { sampleTrack } from '@/ir/sampler';
 import { Sample } from '@/ir/types';
 import styles from './hud.module.css';
@@ -11,6 +11,7 @@ const smp: Sample = { x: 0, y: 0, z: 0, speed: 0, heading: 0, action: 0 };
 
 export default function Minimap() {
   const { ir, players, teamById } = useMatch();
+  const showTactical = useClock((s) => s.showTactical);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -62,18 +63,40 @@ export default function Minimap() {
         ctx.stroke();
       }
 
+      // read follow/hover-preview state imperatively — no React re-render at 60fps
+      const { followId, selectedId } = useClock.getState();
+
       for (const p of players) {
         const tr = ir.tracks[p.id];
         if (!tr) continue;
         sampleTrack(tr, t, smp);
         const team = p.team ? teamById[p.team] : undefined;
+        const px = toX(smp.x);
+        const py = toY(smp.z);
         ctx.beginPath();
         ctx.fillStyle = team?.kit.primary ?? '#fff';
-        ctx.arc(toX(smp.x), toY(smp.z), p.position === 'GK' ? 2.5 : 3, 0, Math.PI * 2);
+        ctx.arc(px, py, p.position === 'GK' ? 2.5 : 3, 0, Math.PI * 2);
         ctx.fill();
         ctx.lineWidth = 0.5;
         ctx.strokeStyle = 'rgba(0,0,0,0.5)';
         ctx.stroke();
+
+        // solid ring = camera-followed player; dashed ring = roster hover preview
+        if (p.id === followId) {
+          ctx.beginPath();
+          ctx.lineWidth = 1.2;
+          ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+          ctx.arc(px, py, 6, 0, Math.PI * 2);
+          ctx.stroke();
+        } else if (p.id === selectedId) {
+          ctx.beginPath();
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+          ctx.setLineDash([2.5, 2.5]);
+          ctx.arc(px, py, 6, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
       }
       // ball
       sampleTrack(ir.tracks['ball'], t, smp);
@@ -86,19 +109,18 @@ export default function Minimap() {
     };
     draw();
     return () => cancelAnimationFrame(raf);
-  }, [ir, players, teamById]);
+  }, [ir, players, teamById, showTactical]);
+
+  if (!showTactical) return null;
 
   return (
     <div className={styles.minimap}>
-      <div className={styles.minimapHead}>
-        <span className={styles.minimapTitle}>Tactical</span>
-        <span className={styles.minimapLive}>
-          <span className={styles.minimapLiveDot} />
-          Live
-        </span>
-      </div>
       <div className={styles.minimapCanvas}>
         <canvas ref={canvasRef} />
+        <span className={styles.minimapBadge} aria-hidden>
+          <i />
+          Live
+        </span>
       </div>
     </div>
   );

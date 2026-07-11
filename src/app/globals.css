@@ -1,73 +1,110 @@
 :root {
-  /* ---- surface ramp (near-black, cool telemetry) ---- */
-  --bg: #05070c;
-  --bg-1: #080b12;
-  --bg-2: #0b1018;
-  --bg-3: #10161f;
+  /* =====================================================================
+     PitchSide — Cinematic Editorial (Runway × PlayStation restraint).
+     The chrome is nearly invisible; the 3D renders carry all the colour.
+     Near-black base · cool neutral ink · white CTAs · zero glow/decoration.
+     Per-match team colour appears only as ONE precise accent (timeline /
+     score hairline), set via --accent-team on the match root.
+     ===================================================================== */
 
-  /* glass panels */
-  --panel: rgba(11, 16, 25, 0.74);
-  --panel-strong: rgba(9, 13, 21, 0.88);
-  --panel-solid: #0c111b;
+  /* ---- ink ramp (near-black, cool) ---- */
+  --ink: #050506;
+  --ink-1: #0b0b0d;
+  --ink-2: #121214;
+  --ink-3: #1a1a1d;
+  --ink-4: #232327;
 
-  /* hairlines / borders */
-  --border: rgba(255, 255, 255, 0.08);
-  --border-bright: rgba(255, 255, 255, 0.16);
-  --border-strong: rgba(255, 255, 255, 0.24);
+  /* ---- text ramp (cool white → cool slate, Runway neutrals) ---- */
+  --chalk: #f5f6f8;
+  --chalk-2: #b7bcc4;
+  --chalk-dim: #7c828c;
+  --chalk-faint: #52565e;
 
-  /* ink ramp */
-  --text: #f2f5fa;
-  --text-2: #c3ccdb;
-  --text-dim: #8a95a8;
-  --text-faint: #5a6479;
+  /* ---- hairlines (barely-visible containment) ---- */
+  --line: rgba(255, 255, 255, 0.07);
+  --line-bright: rgba(255, 255, 255, 0.12);
+  --line-strong: rgba(255, 255, 255, 0.2);
 
-  /* signal accent (telemetry emerald) */
-  --accent: #14e0a0;
-  --accent-bright: #4dffc4;
-  --accent-deep: #0b1f1a;
-  --accent-ink: #04160f;
-  --accent-glow: rgba(20, 224, 160, 0.5);
-  --accent-soft: rgba(20, 224, 160, 0.14);
+  /* ---- accent = white. Primary CTAs are white-on-black. No colour chrome. ---- */
+  --signal: #f5f6f8;
+  --signal-2: #ffffff;
+  --signal-ink: #060606;
+  --signal-glow: transparent;
+  --signal-soft: rgba(255, 255, 255, 0.09);
 
-  /* secondary signals */
-  --warm: #ffb020;
-  --live: #ff4d4d;
-  --info: #7aa2ff;
+  /* ---- true-live red — reserved for the running match clock only ---- */
+  --live: #ff453a;
+  --live-glow: rgba(255, 69, 58, 0.4);
+  --info: #7d8590;
 
-  /* radii */
-  --r-xs: 6px;
-  --r-sm: 9px;
-  --r-md: 14px;
-  --r-lg: 20px;
-  --r-xl: 28px;
+  /* ---- matte surfaces (opaque; no decorative glass) ---- */
+  --surface: #0f0f11;
+  --surface-2: #16161a;
+  --panel: rgba(9, 9, 11, 0.72);
+  --panel-strong: rgba(6, 6, 7, 0.88);
+  --panel-solid: #0f0f11;
+
+  /* ---- per-match re-skin (defaults; overridden on match root) ---- */
+  --home: var(--chalk);
+  --away: var(--chalk);
+  --accent-team: var(--chalk);
+  --accent-team-ink: var(--ink);
+  --accent-team-soft: rgba(255, 255, 255, 0.09);
+  --accent-team-glow: transparent;
+
+  /* ---- legacy aliases → new primitives ---- */
+  --bg: var(--ink);
+  --bg-1: var(--ink-1);
+  --bg-2: var(--ink-2);
+  --bg-3: var(--ink-3);
+  --text: var(--chalk);
+  --text-2: var(--chalk-2);
+  --text-dim: var(--chalk-dim);
+  --text-faint: var(--chalk-faint);
+  --border: var(--line);
+  --border-bright: var(--line-bright);
+  --border-strong: var(--line-strong);
+  --accent: var(--signal);
+  --accent-bright: var(--signal-2);
+  --accent-ink: var(--signal-ink);
+  --accent-glow: var(--signal-glow);
+  --accent-soft: var(--signal-soft);
+  --warm: var(--signal);
+
+  /* ---- radii (Runway/PS 4·8 rhythm) ---- */
+  --r-xs: 3px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
   --r-pill: 999px;
 
-  /* elevation */
-  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 12px 40px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 30px 80px -20px rgba(0, 0, 0, 0.75);
-  --shadow-glow: 0 0 0 1px var(--border-bright), 0 20px 60px -18px rgba(0, 0, 0, 0.8);
+  /* ---- elevation (minimal; depth comes from imagery + surface contrast) ---- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 30px 80px -30px rgba(0, 0, 0, 0.7);
 
-  /* z-scale (semantic) */
+  /* ---- z-scale ---- */
   --z-base: 1;
   --z-scrim: 10;
   --z-hud: 20;
   --z-scoreboard: 24;
+  --z-banner: 26;
   --z-topbar: 25;
   --z-panel: 30;
   --z-tooltip: 40;
   --z-overlay: 60;
 
-  /* motion */
+  /* ---- motion ---- */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
-  --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* type */
-  --font: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+  /* ---- type — single geometric family (Geist), mono for data ---- */
+  --font: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     Helvetica, Arial, sans-serif;
-  --font-display: var(--font-display-face), var(--font);
-  --mono: 'SF Mono', ui-monospace, 'Roboto Mono', Menlo, Consolas, monospace;
+  --font-display: var(--font-geist-sans), var(--font);
+  --mono: var(--font-geist-mono), 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
 }
 
 * {
@@ -78,15 +115,18 @@
 
 html,
 body {
-  height: 100%;
-  background: var(--bg);
-  color: var(--text);
+  /* min-height (not height): a fixed height makes <body> its own scroll
+     container, which breaks window scroll + scroll-driven hero animation */
+  min-height: 100%;
+  background: var(--ink);
+  color: var(--chalk);
   font-family: var(--font);
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  overflow-x: hidden;
+  /* NOTE: no overflow-x on html/body — it would make body a scroll container
+     and break position:sticky (the scroll-driven hero). Horizontal overflow
+     is prevented at the component level instead. */
 }
 
 a {
@@ -103,29 +143,28 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--chalk);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 ::selection {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--chalk);
+  color: var(--ink);
 }
 
-/* thin scrollbars */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 6px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.2);
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-track {
@@ -135,24 +174,20 @@ button {
 .mono {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
-/* fine film grain — used as an overlay utility */
-.grain-layer {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
+/* ---------------------------- keyframes ---------------------------- */
 @keyframes fadeUp {
   from {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
-
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -161,16 +196,6 @@ button {
     opacity: 1;
   }
 }
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
 @keyframes pulse {
   0%,
   100% {
@@ -180,25 +205,36 @@ button {
     opacity: 0.4;
   }
 }
-
 @keyframes livePulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.55);
+    box-shadow: 0 0 0 0 var(--live-glow);
   }
   70% {
-    box-shadow: 0 0 0 7px rgba(255, 77, 77, 0);
+    box-shadow: 0 0 0 6px rgba(255, 69, 58, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(255, 77, 77, 0);
+    box-shadow: 0 0 0 0 rgba(255, 69, 58, 0);
   }
 }
-
-@keyframes drift {
+/* Score digit rolls up into an overflow-hidden window (Scoreboard). */
+@keyframes digitRoll {
   from {
-    transform: translate3d(0, 0, 0);
+    opacity: 0;
+    transform: translateY(85%);
   }
   to {
-    transform: translate3d(-40px, -30px, 0);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes revealUp {
+  from {
+    opacity: 0;
+    transform: translateY(34px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -210,5 +246,6 @@ button {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+    animation-timeline: none !important;
   }
 }

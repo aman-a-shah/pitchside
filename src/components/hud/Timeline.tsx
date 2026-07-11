@@ -1,42 +1,62 @@
 'use client';
 
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useMatch } from '@/state/match';
 import { useClock } from '@/state/clock';
-import { mmss } from '@/lib/format';
+import { scoreMoments } from '@/lib/stats';
+import { broadcastClock } from '@/lib/format';
 import styles from './hud.module.css';
 
+// Cinematic-restraint palette: goals own the live red, other key moments take
+// the per-match team accent, routine events stay neutral. No rainbow chrome.
 const MARKER_COLOR: Record<string, string> = {
-  goal: '#ff4d4d',
-  made_shot: '#ffb020',
-  dunk: '#ffb020',
-  save: '#14e0a0',
-  winner: '#ffb020',
-  shot: '#7aa2ff',
+  goal: 'var(--live)',
+  made_shot: 'var(--accent-team)',
+  dunk: 'var(--accent-team)',
+  save: 'var(--accent-team)',
+  winner: 'var(--accent-team)',
+  shot: 'var(--chalk-dim)',
 };
 
 export default function Timeline() {
-  const { keyEvents } = useMatch();
+  const { ir, keyEvents } = useMatch();
   const uiT = useClock((s) => s.uiT);
   const duration = useClock((s) => s.duration);
   const seek = useClock((s) => s.seek);
   const pause = useClock((s) => s.pause);
   const trackRef = useRef<HTMLDivElement>(null);
+  const bubbleRef = useRef<HTMLSpanElement>(null);
   const dragging = useRef(false);
+
+  // score moments become kit-colored "chapter" ticks — taller than routine
+  // markers, colored by WHO scored, so the match's shape reads at a glance
+  const chapters = useMemo(() => scoreMoments(ir), [ir]);
 
   const pct = duration > 0 ? (uiT / duration) * 100 : 0;
 
-  const seekFromEvent = (clientX: number) => {
+  const fracFromEvent = (clientX: number) => {
     const el = trackRef.current;
-    if (!el) return;
+    if (!el) return 0;
     const rect = el.getBoundingClientRect();
-    const f = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    seek(f * duration);
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  };
+
+  const seekFromEvent = (clientX: number) => seek(fracFromEvent(clientX) * duration);
+
+  // hover time bubble — written straight to the DOM so pointermove never re-renders
+  const moveBubble = (clientX: number) => {
+    const el = trackRef.current;
+    const bubble = bubbleRef.current;
+    if (!el || !bubble) return;
+    const rect = el.getBoundingClientRect();
+    const f = fracFromEvent(clientX);
+    bubble.style.left = `${f * rect.width}px`;
+    bubble.textContent = broadcastClock(ir, f * duration);
   };
 
   return (
     <div className={styles.timeline}>
-      <span className={styles.tlTime}>{mmss(uiT)}</span>
+      <span className={styles.tlTime}>{broadcastClock(ir, uiT)}</span>
       <div
         className={styles.tlTrack}
         ref={trackRef}
@@ -48,6 +68,7 @@ export default function Timeline() {
         }}
         onPointerMove={(e) => {
           if (dragging.current) seekFromEvent(e.clientX);
+          moveBubble(e.clientX);
         }}
         onPointerUp={(e) => {
           dragging.current = false;
@@ -63,7 +84,7 @@ export default function Timeline() {
             className={styles.tlMarker}
             style={{
               left: `${(ev.t / duration) * 100}%`,
-              background: MARKER_COLOR[ev.type] ?? '#8a8f9a',
+              background: MARKER_COLOR[ev.type] ?? 'var(--chalk-faint)',
             }}
             onPointerDown={(e) => {
               e.stopPropagation();
@@ -71,13 +92,32 @@ export default function Timeline() {
             }}
           >
             <span className={styles.tlTip}>
-              {mmss(ev.t)} · {ev.text ?? ev.type}
+              {broadcastClock(ir, ev.t)} · {ev.text ?? ev.type}
+            </span>
+          </div>
+        ))}
+        {chapters.map((m, i) => (
+          <div
+            key={`c${i}`}
+            className={`${styles.tlMarker} ${styles.tlChapter}`}
+            style={{
+              left: `${(m.t / duration) * 100}%`,
+              background: m.side === 'home' ? 'var(--home-legible)' : 'var(--away-legible)',
+            }}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              seek(Math.max(0, m.t - 2));
+            }}
+          >
+            <span className={styles.tlTip}>
+              {broadcastClock(ir, m.t)} · {m.label} — {m.home}:{m.away}
             </span>
           </div>
         ))}
         <div className={styles.tlHead} style={{ left: `${pct}%` }} />
+        <span className={styles.tlBubble} ref={bubbleRef} aria-hidden />
       </div>
-      <span className={styles.tlTime}>{mmss(duration)}</span>
+      <span className={styles.tlTime}>{broadcastClock(ir, duration)}</span>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useMatch } from '@/state/match';
 import { useClock } from '@/state/clock';
 import { ScoreSnapshot } from '@/ir/types';
-import { mmss } from '@/lib/format';
+import { broadcastClock } from '@/lib/format';
 import styles from './hud.module.css';
 
 function snapshotAt(list: ScoreSnapshot[], t: number): ScoreSnapshot {
@@ -31,9 +31,18 @@ export default function Scoreboard() {
         <span className={styles.sbShort}>{home.short}</span>
       </div>
       <div className={styles.sbScore}>
-        <span className={styles.sbNum}>{snap.home}</span>
+        <span className={styles.sbNum}>
+          {/* key remount re-triggers the roll each time the score changes */}
+          <span className={styles.sbNumRoll} key={snap.home}>
+            {snap.home}
+          </span>
+        </span>
         <span className={styles.sbColon}>:</span>
-        <span className={styles.sbNum}>{snap.away}</span>
+        <span className={styles.sbNum}>
+          <span className={styles.sbNumRoll} key={snap.away}>
+            {snap.away}
+          </span>
+        </span>
       </div>
       <div
         className={`${styles.sbTeam} ${styles.sbAway}`}
@@ -45,7 +54,7 @@ export default function Scoreboard() {
 
       <div className={styles.sbClock}>
         <span className={styles.liveDot} />
-        <span className={styles.sbTime}>{mmss(uiT)}</span>
+        <span className={styles.sbTime}>{broadcastClock(ir, uiT)}</span>
         {snap.detail && <span className={styles.sbDetail}>{snap.detail}</span>}
       </div>
     </div>
