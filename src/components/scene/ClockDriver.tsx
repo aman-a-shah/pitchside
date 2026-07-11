@@ -25,6 +25,13 @@ export default function ClockDriver() {
     if (st.playing) {
       const d = Math.min(delta, 0.1); // guard against tab-refocus jumps
       let t = playhead.t + d * st.speed;
+      // jump over dead stretches (nothing happens on the pitch there)
+      for (const [s0, s1] of st.deadSpans) {
+        if (t > s0 && t < s1) {
+          t = s1;
+          break;
+        }
+      }
       if (t >= st.duration) {
         t = st.duration;
         st.pause();

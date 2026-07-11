@@ -106,6 +106,8 @@ export type EventType =
   | 'out'
   | 'restart'
   | 'foul'
+  | 'card'
+  | 'sub'
   | 'celebration'
   // basketball
   | 'made_shot'
@@ -178,6 +180,15 @@ export interface ScoreSnapshot {
   detail?: string;
 }
 
+/** One playing period, for mapping the continuous clock to broadcast minutes. */
+export interface PeriodSpec {
+  /** world-clock time this period starts at, seconds */
+  t0: number;
+  /** broadcast minute the period starts from (2nd half = 45 regardless of stoppage) */
+  startMinute: number;
+  label: string;
+}
+
 export interface MatchIR {
   id: string;
   sport: Sport;
@@ -186,6 +197,14 @@ export interface MatchIR {
   fieldSpec: FieldSpec;
   /** total match-clock duration, seconds */
   duration: number;
+  /**
+   * Stretches where nothing happens on the pitch (free-kick setups, VAR,
+   * injuries). The playback clock jumps over these while playing; the
+   * timeline still shows real time so minutes stay broadcast-accurate.
+   */
+  deadSpans?: [number, number][];
+  /** real-data matches: period boundaries for broadcast-minute display */
+  periods?: PeriodSpec[];
   entities: Entity[];
   /** entity id -> track */
   tracks: Record<string, Track>;

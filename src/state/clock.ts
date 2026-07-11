@@ -23,6 +23,8 @@ interface ClockState {
   playing: boolean;
   speed: number;
   duration: number;
+  /** dead stretches the clock jumps over while playing (see MatchIR.deadSpans) */
+  deadSpans: [number, number][];
   /** throttled copy of playhead.t for UI display (~15Hz) */
   uiT: number;
 
@@ -31,9 +33,13 @@ interface ClockState {
   selectedId: string | null;
   videoOpen: boolean;
   showTactical: boolean;
+  statsOpen: boolean;
+  shortcutsOpen: boolean;
+  rosterOpen: boolean;
 
   // actions
   setDuration: (d: number) => void;
+  setDeadSpans: (s: [number, number][]) => void;
   play: () => void;
   pause: () => void;
   toggle: () => void;
@@ -46,21 +52,29 @@ interface ClockState {
   select: (id: string | null) => void;
   setVideoOpen: (v: boolean) => void;
   toggleTactical: () => void;
+  setStatsOpen: (v: boolean) => void;
+  setShortcutsOpen: (v: boolean) => void;
+  setRosterOpen: (v: boolean) => void;
 }
 
 export const useClock = create<ClockState>((set, get) => ({
   playing: false,
   speed: 1,
   duration: 0,
+  deadSpans: [],
   uiT: 0,
 
   cameraMode: 'broadcast',
   followId: null,
   selectedId: null,
   videoOpen: false,
-  showTactical: false,
+  showTactical: true,
+  statsOpen: false,
+  shortcutsOpen: false,
+  rosterOpen: false,
 
   setDuration: (d) => set({ duration: d }),
+  setDeadSpans: (s) => set({ deadSpans: s }),
   play: () => set({ playing: true }),
   pause: () => set({ playing: false }),
   toggle: () => set((s) => ({ playing: !s.playing })),
@@ -81,8 +95,12 @@ export const useClock = create<ClockState>((set, get) => ({
       cameraMode: id ? 'player' : s.cameraMode === 'player' ? 'broadcast' : s.cameraMode,
     })),
   select: (id) => set({ selectedId: id }),
-  setVideoOpen: (v) => set({ videoOpen: v }),
+  // The right edge hosts one panel at a time: video ⊕ stats.
+  setVideoOpen: (v) => set(v ? { videoOpen: true, statsOpen: false } : { videoOpen: false }),
   toggleTactical: () => set((s) => ({ showTactical: !s.showTactical })),
+  setStatsOpen: (v) => set(v ? { statsOpen: true, videoOpen: false } : { statsOpen: false }),
+  setShortcutsOpen: (v) => set({ shortcutsOpen: v }),
+  setRosterOpen: (v) => set({ rosterOpen: v }),
 }));
 
 // Debug/automation hook: lets a headless harness drive the clock deterministically.
