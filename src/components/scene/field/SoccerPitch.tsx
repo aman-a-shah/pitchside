@@ -4,14 +4,13 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { FieldSpec } from '@/ir/types';
 import { SceneTheme } from '../theme';
-import GrassField from './GrassField';
 import Goals from './Goals';
 
 /**
  * The pitch surface. It uses a MeshStandardMaterial (so it is fully lit and
  * RECEIVES player shadows) with an onBeforeCompile injection that paints mow
  * stripes and every line marking as an anti-aliased SDF — resolution independent,
- * zero textures. A wind-driven instanced grass layer sits on top.
+ * zero textures.
  */
 export default function SoccerPitch({ field, theme }: { field: FieldSpec; theme: SceneTheme }) {
   const hl = field.length / 2;
@@ -19,12 +18,19 @@ export default function SoccerPitch({ field, theme }: { field: FieldSpec; theme:
 
   const material = useMemo(() => {
     const mat = new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0 });
+    // real turf micro-detail from the game's AN grass albedo (tiled, luminance
+    // only — hue stays owned by the theme so moods keep their palette)
+    const detail = new THREE.TextureLoader().load('/textures/grass_albedo.jpg');
+    detail.wrapS = detail.wrapT = THREE.RepeatWrapping;
+    detail.colorSpace = THREE.SRGBColorSpace;
+    detail.anisotropy = 8;
     const uniforms = {
       uHl: { value: hl },
       uHw: { value: hw },
       uBase: { value: new THREE.Color(theme.grassBase) },
       uStripe: { value: new THREE.Color(theme.grassTip).multiplyScalar(0.8) },
       uLine: { value: new THREE.Color('#eef3ee') },
+      uDetail: { value: detail },
     };
     mat.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, uniforms);
@@ -38,6 +44,7 @@ export default function SoccerPitch({ field, theme }: { field: FieldSpec; theme:
         `varying vec2 vWorldXZ;
          uniform float uHl; uniform float uHw;
          uniform vec3 uBase; uniform vec3 uStripe; uniform vec3 uLine;
+         uniform sampler2D uDetail;
          float rectOutline(vec2 p, vec2 he, float t){
            vec2 d = abs(p) - he; float o = length(max(d,0.0));
            float i = min(max(d.x,d.y),0.0); float s = abs(o+i);
@@ -73,11 +80,16 @@ export default function SoccerPitch({ field, theme }: { field: FieldSpec; theme:
            float band = floor(bandf);
            float sm = mod(band, 2.0);
            vec3 g = mix(uBase, uStripe, sm > 0.5 ? 1.0 : 0.0);
-           g = mix(uBase*0.9, g, 1.0); // keep richness
-           g *= sm > 0.5 ? 1.10 : 0.9;
+           // broadcast-subtle stripes: alternate bands differ by ~12%, not 20%+
+           g *= sm > 0.5 ? 1.06 : 0.94;
+           // real turf micro-detail (two scales of the AN albedo, luminance only)
+           vec3 d1 = texture2D(uDetail, p * 0.055).rgb;
+           vec3 d2 = texture2D(uDetail, p * 0.014 + 0.37).rgb;
+           float dl = dot(d1, vec3(0.333)) * 0.62 + dot(d2, vec3(0.333)) * 0.38;
+           g *= 0.82 + dl * 0.36;
            // organic mottling: two octaves of smooth noise (no blocky cells)
            float n = snoise(p*1.3)*0.6 + snoise(p*4.7)*0.4;
-           g *= 0.9 + n*0.2;
+           g *= 0.93 + n*0.13;
            // faint diagonal cross-cut pattern for a manicured look
            g *= 1.0 + 0.03*sin((p.x+p.y)*0.9);
            // gentle wear: darker, slightly desaturated toward the touchlines
@@ -108,7 +120,7 @@ export default function SoccerPitch({ field, theme }: { field: FieldSpec; theme:
           'vec4 diffuseColor = vec4( pitchColor(vWorldXZ), opacity );'
         );
     };
-    mat.customProgramCacheKey = () => 'soccer-pitch';
+    mat.customProgramCacheKey = () => 'soccer-pitch-v2';
     return mat;
   }, [theme.grassBase, theme.grassTip, hl, hw]);
 
@@ -118,7 +130,6 @@ export default function SoccerPitch({ field, theme }: { field: FieldSpec; theme:
         <planeGeometry args={[field.length + 22, field.width + 22, 1, 1]} />
         <primitive object={material} attach="material" />
       </mesh>
-      <GrassField length={field.length} width={field.width} theme={theme} />
       <Goals halfLength={hl} />
     </group>
   );

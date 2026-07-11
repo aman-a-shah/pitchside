@@ -5,7 +5,13 @@ import * as THREE from 'three';
 import { MatchModel } from '@/state/match';
 import Scene from './Scene';
 
-export default function SceneCanvas({ model }: { model: MatchModel }) {
+export default function SceneCanvas({
+  model,
+  onReady,
+}: {
+  model: MatchModel;
+  onReady?: () => void;
+}) {
   return (
     <Canvas
       shadows
@@ -17,6 +23,7 @@ export default function SceneCanvas({ model }: { model: MatchModel }) {
         toneMapping: THREE.ACESFilmicToneMapping,
       }}
       camera={{ fov: 40, near: 0.5, far: 2200, position: [0, 34, 96] }}
+      onCreated={() => onReady?.()}
     >
       <Scene model={model} />
     </Canvas>

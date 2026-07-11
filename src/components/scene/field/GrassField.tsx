@@ -11,8 +11,11 @@ const COUNT = 210000;
 const BLADE_H = 0.15;
 const BLADE_W = 0.075;
 const SEGMENTS = 3;
-const FADE_NEAR = 26; // blades full height within this radius of the camera
-const FADE_FAR = 62; // …collapsed into the pitch shader beyond this
+// Tight fade: blades only exist near the camera (fly/cinematic close-ups);
+// beyond ~40m the pitch texture carries all detail. A wide fade zone used to
+// leave half-collapsed blades reading as dark flecks in broadcast framing.
+const FADE_NEAR = 18; // blades full height within this radius of the camera
+const FADE_FAR = 40; // …collapsed into the pitch shader beyond this
 const STRIPE_W = 5.5; // must match SoccerPitch mow-stripe width
 
 /**
@@ -71,6 +74,18 @@ export default function GrassField({
     return g;
   }, [theme.grassBase, theme.grassTip]);
 
+  // Clamp band derived from the ACTIVE theme so blades always sit inside the
+  // pitch's own tonal range (hardcoded bands used to mismatch the pitch and
+  // read as bright/dark confetti at grazing angles).
+  const clampLo = useMemo(
+    () => new THREE.Color(theme.grassBase).multiplyScalar(0.92),
+    [theme.grassBase]
+  );
+  const clampHi = useMemo(
+    () => new THREE.Color(theme.grassTip).multiplyScalar(1.06),
+    [theme.grassTip]
+  );
+
   const material = useMemo(() => {
     const mat = new THREE.MeshStandardMaterial({
       vertexColors: true,
@@ -81,6 +96,8 @@ export default function GrassField({
     const time = timeRef.current;
     mat.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = time;
+      shader.uniforms.uClampLo = { value: clampLo };
+      shader.uniforms.uClampHi = { value: clampHi };
       shader.vertexShader =
         `attribute float aPhase;
          uniform float uTime;
@@ -124,22 +141,23 @@ export default function GrassField({
            vTipGlow = bh * (0.5 + 0.5 * gust);`
         );
       shader.fragmentShader =
-        'varying float vTipGlow;\n' +
+        'varying float vTipGlow;\nuniform vec3 uClampLo;\nuniform vec3 uClampHi;\n' +
         shader.fragmentShader.replace(
           '#include <dithering_fragment>',
           `#include <dithering_fragment>
-           // fake subsurface: sunlit tips glow a touch, so wind waves shimmer
-           gl_FragColor.rgb += vTipGlow * vTipGlow * 0.02;
-           // Clamp blade output into a tight turf band: a ceiling so floodlights
-           // can't blow blades white, AND a floor so shaded blade-backs / inter-blade
-           // AO can't crush to dark specks. Result reads as one cohesive carpet at
-           // every camera height instead of bright- or dark-confetti.
-           gl_FragColor.rgb = clamp(gl_FragColor.rgb, vec3(0.19, 0.34, 0.22), vec3(0.34, 0.56, 0.38));`
+           // fake subsurface + the AN pack's "waving tint": gusted, sunlit tips
+           // pick up a warm yellow-green shimmer so wind waves read as light
+           gl_FragColor.rgb += vTipGlow * vTipGlow * vec3(0.026, 0.03, 0.012);
+           // Clamp blade output into the ACTIVE THEME's turf band: a ceiling so
+           // floodlights can't blow blades white, AND a floor so shaded blade
+           // backs / inter-blade AO can't crush to dark specks. Result reads as
+           // one cohesive carpet at every camera height instead of confetti.
+           gl_FragColor.rgb = clamp(gl_FragColor.rgb, uClampLo, uClampHi);`
         );
     };
-    mat.customProgramCacheKey = () => 'grass-v2';
+    mat.customProgramCacheKey = () => 'grass-v3';
     return mat;
-  }, []);
+  }, [clampLo, clampHi]);
 
   const onMesh = (mesh: THREE.InstancedMesh | null) => {
     if (!mesh || mesh.userData.filled) return;

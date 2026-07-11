@@ -4,6 +4,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Sport } from '@/ir/types';
+import { playhead } from '@/state/clock';
 import { SceneTheme } from './theme';
 
 interface BowlConfig {
@@ -57,8 +58,13 @@ export default function Stadium({ sport, theme, fieldLength, fieldWidth }: {
     []
   );
   const concreteMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: '#3b3f48', roughness: 0.95 }),
-    []
+    () =>
+      new THREE.MeshStandardMaterial({
+        // daylight shows real concrete; floodlit moods keep the dark shell
+        color: theme.floodlights ? '#3b3f48' : '#878b92',
+        roughness: 0.95,
+      }),
+    [theme.floodlights]
   );
 
   const geo = useMemo(() => {
@@ -89,8 +95,10 @@ export default function Stadium({ sport, theme, fieldLength, fieldWidth }: {
     body.userData.filled = true;
   };
 
-  useFrame((_, delta) => {
-    timeRef.current.value += delta;
+  // sway follows MATCH time (not wall clock): pause freezes the crowd with the
+  // play, and stepped headless captures see the exact same pose per frame
+  useFrame(() => {
+    timeRef.current.value = playhead.t;
   });
 
   const hl = fieldLength / 2;
@@ -255,6 +263,23 @@ function makeSwayMaterial(time: { value: number }, isHead: boolean) {
 
 // --------------------------- extras ------------------------------------------
 
+let glowTex: THREE.Texture | null = null;
+function getGlowTexture(): THREE.Texture {
+  if (glowTex) return glowTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.22, 'rgba(240,246,255,0.5)');
+  g.addColorStop(0.55, 'rgba(225,236,255,0.12)');
+  g.addColorStop(1, 'rgba(225,236,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  glowTex = new THREE.CanvasTexture(c);
+  return glowTex;
+}
+
 function Floodlights({ hl, hw, gap, depth, height }: { hl: number; hw: number; gap: number; depth: number; height: number }) {
   const towerH = height + 22;
   const positions: [number, number][] = [
@@ -294,12 +319,15 @@ function Floodlights({ hl, hw, gap, depth, height }: { hl: number; hw: number; g
     });
   }, []);
 
+  // soft radial glow around the lamp bank. A SpriteMaterial with no map draws
+  // a SOLID QUAD (a visible glowing box), so the gradient texture is required.
   const haloMat = useMemo(
     () =>
       new THREE.SpriteMaterial({
-        color: '#ffedc0',
+        map: getGlowTexture(),
+        color: '#eaf1ff',
         transparent: true,
-        opacity: 0.14,
+        opacity: 0.4,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }),

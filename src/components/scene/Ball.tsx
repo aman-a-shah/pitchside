@@ -40,6 +40,7 @@ function SphereBall({ radius, mat }: { radius: number; mat: THREE.Material }) {
 export default function Ball({ track, sport }: { track: Track; sport: Sport }) {
   const roller = useRef<THREE.Group>(null!);
   const prev = useRef({ t: playhead.t, x: 0, z: 0, init: false });
+  const smooth = useRef({ pos: new THREE.Vector3(), init: false });
   const radius = RADII[sport];
 
   const fallbackMat = useMemo(() => {
@@ -57,21 +58,35 @@ export default function Ball({ track, sport }: { track: Track; sport: Sport }) {
     return new THREE.MeshStandardMaterial({ color: '#f4f6fa', roughness: 0.45 });
   }, [sport]);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const m = roller.current;
     if (!m) return;
     const t = playhead.t;
     const s = sampleTrack(track, t, tmp);
-    m.position.set(s.x, Math.max(radius, s.y), s.z);
+    const target = new THREE.Vector3(s.x, Math.max(radius, s.y), s.z);
+
+    // Low-pass the sampled position: tracks are stored at 25Hz and linear
+    // interpolation between samples leaves visible velocity kinks / jitter at
+    // 60–120fps render rates. A short (~70ms) exponential smoothing rides out
+    // the kinks without noticeably lagging fast shots. Snap on seeks or
+    // genuine teleports so the ball never "lasers" across the field.
+    const sm = smooth.current;
+    const dtm = t - prev.current.t;
+    if (!sm.init || Math.abs(dtm) > 0.5 || sm.pos.distanceTo(target) > 12) {
+      sm.pos.copy(target);
+      sm.init = true;
+    } else {
+      sm.pos.lerp(target, 1 - Math.exp(-Math.min(delta, 0.1) * 14));
+    }
+    m.position.copy(sm.pos);
 
     // scrub-safe rolling: rotate by ground distance / radius about the travel-perp axis
-    const dtm = t - prev.current.t;
-    const dx = s.x - prev.current.x;
-    const dz = s.z - prev.current.z;
+    const dx = sm.pos.x - prev.current.x;
+    const dz = sm.pos.z - prev.current.z;
     const wasInit = prev.current.init;
     prev.current.t = t;
-    prev.current.x = s.x;
-    prev.current.z = s.z;
+    prev.current.x = sm.pos.x;
+    prev.current.z = sm.pos.z;
     prev.current.init = true;
     if (wasInit && Math.abs(dtm) < 0.5) {
       const d = Math.hypot(dx, dz);
@@ -97,11 +112,11 @@ export default function Ball({ track, sport }: { track: Track; sport: Sport }) {
 
   return (
     <Trail
-      width={radius * 16}
-      length={4}
+      width={radius * 9}
+      length={2.6}
       color={new THREE.Color(trailColor)}
       attenuation={(w) => w * w * w}
-      decay={1.8}
+      decay={2.4}
     >
       <group ref={roller}>
         <Suspense fallback={<SphereBall radius={radius} mat={fallbackMat} />}>{visual}</Suspense>

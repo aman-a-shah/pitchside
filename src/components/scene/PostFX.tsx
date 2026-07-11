@@ -68,15 +68,17 @@ export default function PostFX({ mood }: { mood: Mood }) {
       ) : (
         <></>
       )}
-      <HueSaturation saturation={bright ? 0.08 : 0.14} hue={0} />
-      <BrightnessContrast brightness={bright ? -0.01 : 0.01} contrast={bright ? 0.08 : 0.12} />
+      {/* Grade ≈ the reference game's AstralHorizon profile, web-restrained:
+          lifted contrast, small saturation push, cool-neutral tilt. */}
+      <HueSaturation saturation={bright ? 0.1 : 0.15} hue={-0.015} />
+      <BrightnessContrast brightness={bright ? -0.005 : 0.012} contrast={bright ? 0.14 : 0.17} />
       <ChromaticAberration
         offset={caOffset}
         radialModulation
         modulationOffset={0.35}
         blendFunction={BlendFunction.NORMAL}
       />
-      <Vignette offset={0.22} darkness={bright ? 0.46 : 0.68} eskil={false} />
+      <Vignette offset={0.24} darkness={bright ? 0.38 : 0.55} eskil={false} />
       <Noise premultiply blendFunction={BlendFunction.OVERLAY} opacity={bright ? 0.035 : 0.06} />
       <SMAA />
     </EffectComposer>

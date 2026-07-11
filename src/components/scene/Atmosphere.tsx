@@ -5,6 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Sparkles } from '@react-three/drei';
 import { Mood, Sport } from '@/ir/types';
+import { playhead } from '@/state/clock';
 
 /**
  * Volumetric atmosphere: the airborne life of the scene.
@@ -189,8 +190,9 @@ function GroundMist({
     return m;
   }, [tint, mood]);
 
-  useFrame((_, dt) => {
-    material.uniforms.uTime.value += Math.min(dt, 0.05);
+  // mist drifts with MATCH time so pause/slow-mo/headless capture all agree
+  useFrame(() => {
+    material.uniforms.uTime.value = playhead.t;
   });
 
   // basketball is indoors on a tight court — skip the sprawling mist plane

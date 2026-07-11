@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -20,9 +20,79 @@ function samplePos(ir: MatchIR, id: string, t: number, out: THREE.Vector3): THRE
 
 export default function CameraRig() {
   const mode = useClock((st) => st.cameraMode);
+  const film = useMemo(
+    () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('film'),
+    []
+  );
+  if (film) return <FilmMode />;
   if (mode === 'orbit') return <OrbitMode />;
   if (mode === 'fly') return <FlyMode />;
   return <AutoMode key={mode} />;
+}
+
+// --------------------------- film (hero footage) -----------------------------
+
+/**
+ * FilmMode (?film=1&filmStart=s&filmEnd=s) — the hero-footage camera.
+ * Position and aim are a PURE function of playhead.t, so a headless harness
+ * stepping the clock (scripts/film.mjs) captures a perfectly smooth move with
+ * zero per-frame lerp state. One continuous crane shot: high above the stand,
+ * sweeping down across the bowl, settling into a low touchline angle that
+ * tracks the ball into the key moment.
+ */
+function FilmMode() {
+  const { ir } = useMatch();
+  const { camera } = useThree();
+  const ball = useRef(new THREE.Vector3());
+  const look = useRef(new THREE.Vector3());
+
+  const cfg = useMemo(() => {
+    const q = new URLSearchParams(window.location.search);
+    const start = parseFloat(q.get('filmStart') ?? '20');
+    const end = parseFloat(q.get('filmEnd') ?? String(start + 10));
+    const l = ir.fieldSpec.length;
+    const w = ir.fieldSpec.width;
+    // sweep TOWARD the end where the play concludes (which goal the ball is
+    // at when the window closes) so the shot lands on the action
+    const endBall = samplePos(ir, 'ball', end, new THREE.Vector3());
+    const m = endBall.x >= 0 ? 1 : -1;
+    const curve = new THREE.CatmullRomCurve3(
+      [
+        new THREE.Vector3(-m * l * 0.42, 30, -(w * 0.5 + 30)),
+        new THREE.Vector3(-m * l * 0.1, 18, -(w * 0.5 + 16)),
+        new THREE.Vector3(m * l * 0.18, 8, -(w * 0.5 + 6)),
+        new THREE.Vector3(m * l * 0.38, 4.6, -(w * 0.5 + 10)),
+      ],
+      false,
+      'centripetal'
+    );
+    return { start, end, curve };
+  }, [ir]);
+
+  useFrame(() => {
+    const u = THREE.MathUtils.clamp((playhead.t - cfg.start) / (cfg.end - cfg.start), 0, 1);
+    const s = THREE.MathUtils.smootherstep(u, 0, 1);
+    camera.position.copy(cfg.curve.getPoint(s));
+
+    samplePos(ir, 'ball', playhead.t, ball.current);
+    // early: hold the whole pitch; late: track the ball into the play
+    const follow = THREE.MathUtils.smoothstep(u, 0.2, 0.6);
+    look.current.set(
+      THREE.MathUtils.lerp(0, ball.current.x, follow),
+      THREE.MathUtils.lerp(2, 1.2, follow),
+      THREE.MathUtils.lerp(0, ball.current.z * 0.8, follow)
+    );
+    camera.lookAt(look.current);
+
+    const persp = camera as THREE.PerspectiveCamera;
+    const fov = 50 - 10 * s; // slow push-in
+    if (persp.fov !== fov) {
+      persp.fov = fov;
+      persp.updateProjectionMatrix();
+    }
+  });
+
+  return null;
 }
 
 // --------------------------- orbit ------------------------------------------
@@ -185,8 +255,19 @@ function findKeyEvent(ir: MatchIR, t: number) {
 
 // --------------------------- fly / FPS --------------------------------------
 
+// how far past the field edge (into the runoff, before the first row of
+// seats) and how high (below the stand tops) free-fly may roam, per sport —
+// keeps the camera anchored inside the bowl: no crowd, no outside, no
+// underground. Pads mirror Stadium's CONFIG gap values.
+const FLY_BOUNDS = {
+  soccer: { pad: 5, maxY: 18 },
+  basketball: { pad: 2, maxY: 10 },
+  tennis: { pad: 3.5, maxY: 10 },
+} as const;
+
 function FlyMode() {
   const { camera, gl } = useThree();
+  const { ir } = useMatch();
   const keys = useRef<Record<string, boolean>>({});
   const yaw = useRef(0);
   const pitch = useRef(0);
@@ -254,7 +335,14 @@ function FlyMode() {
     }
     if (k['KeyE'] || k['Space']) camera.position.y += speed;
     if (k['KeyQ'] || k['ControlLeft']) camera.position.y -= speed;
-    if (camera.position.y < 0.6) camera.position.y = 0.6;
+
+    // hard-anchor inside the arena bowl
+    const b = FLY_BOUNDS[ir.sport] ?? FLY_BOUNDS.soccer;
+    const maxX = ir.fieldSpec.length / 2 + b.pad;
+    const maxZ = ir.fieldSpec.width / 2 + b.pad;
+    camera.position.x = THREE.MathUtils.clamp(camera.position.x, -maxX, maxX);
+    camera.position.z = THREE.MathUtils.clamp(camera.position.z, -maxZ, maxZ);
+    camera.position.y = THREE.MathUtils.clamp(camera.position.y, 0.6, b.maxY);
   });
 
   return null;
