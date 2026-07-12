@@ -166,6 +166,9 @@ export default function Athlete({ id, track, kit, number, isGK, events, sport }:
   // one skeleton clone per player, with per-player tinted materials
   const obj = useMemo(() => {
     const c = SkeletonUtils.clone(scene) as THREE.Group;
+    // stature varies player to player — identical clones read as clones
+    const stature = 0.955 + hash01(id, 31) * 0.09;
+    c.scale.multiplyScalar(stature);
     const skinColor = variedSkin(kit.skin, hash01(id, 11));
     const hair = HAIR_COLORS[Math.floor(hash01(id, 23) * HAIR_COLORS.length)];
     c.traverse((o) => {

@@ -88,6 +88,7 @@ export interface SBEvent {
     type?: SBRef;
   };
   carry?: { end_location: [number, number] };
+  ball_receipt?: { outcome?: SBRef };
   shot?: {
     statsbomb_xg?: number;
     end_location: [number, number] | [number, number, number];

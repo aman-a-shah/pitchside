@@ -22,11 +22,12 @@ import {
   MatchEvent,
   MatchIR,
   PeriodSpec,
+  Sample,
   ScoreSnapshot,
   TeamInfo,
   Track,
 } from '@/ir/types';
-import { createTrack } from '@/ir/sampler';
+import { createTrack, lerpAngle, sampleTrack } from '@/ir/sampler';
 import { eraOf } from '@/lib/era';
 import { SBEvent, SBIndexMatch, SBLineupTeam, SBRef } from './statsbomb';
 import { accentFor, kitsForFixture, teamCode } from './teamKits';
@@ -48,9 +49,18 @@ const PERIOD_PAD = 3; // breather inserted between periods, seconds
 
 // ------------------------------ small helpers --------------------------------
 
+const TAU = Math.PI * 2;
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
 const lerp = (a: number, b: number, f: number) => a + (b - a) * f;
 const smooth = (f: number) => f * f * (3 - 2 * f);
+
+/** deterministic per-player 0..1 (persona traits must survive reloads/scrubs) */
+function hash01p(id: number, salt: number): number {
+  let h = (Math.imul(id, 2654435761) ^ Math.imul(salt + 1, 40503)) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 3266489917);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
 
 function tsSec(timestamp: string): number {
   const [h, m, s] = timestamp.split(':');
@@ -317,6 +327,31 @@ export function reconstructSoccerMatch(
 
   const kickoffOfPeriod = new Set<number>();
 
+  // ---- possession model -----------------------------------------------------
+  // Who has the ball at their feet, and when it is genuinely in flight. The
+  // ball waypoints and the player tracks are synthesized independently, so on
+  // their own they drift apart; possession spans let a final pass glue the
+  // rendered ball to the carrier's ACTUAL track (the only way it truly stays
+  // on the dribbler's boots). Flight windows are the passes/shots where it
+  // must not be glued to anyone.
+  interface PossSpan {
+    t0: number;
+    t1: number;
+    eid: string;
+  }
+  const possSpans: PossSpan[] = [];
+  const flights: [number, number][] = [];
+  let carrier: { eid: string; t0: number } | null = null;
+  const closePoss = (t: number) => {
+    if (carrier && t > carrier.t0 + 0.05) possSpans.push({ t0: carrier.t0, t1: t, eid: carrier.eid });
+    carrier = null;
+  };
+  const openPoss = (eid: string, t: number) => {
+    if (carrier?.eid === eid) return;
+    closePoss(t);
+    carrier = { eid, t0: t };
+  };
+
   for (const e of events) {
     const t = tOf(e);
     const letter = letterOfEvent(e);
@@ -326,6 +361,7 @@ export function reconstructSoccerMatch(
     if (!kickoffOfPeriod.has(e.period)) {
       kickoffOfPeriod.add(e.period);
       const t0 = periodOffset.get(e.period) ?? 0;
+      closePoss(Math.max(0, t0 - PERIOD_PAD));
       if (e.period > 1 && e.period < 5) pushBall(t0, 0, 0, BALL_R, 0, true);
       if (e.period === 2)
         irEvents.push({ t: t0, type: 'restart', importance: 0.45, text: 'Second half under way.' });
@@ -351,6 +387,7 @@ export function reconstructSoccerMatch(
       // dense-track pace cap), then settle with whatever remains, up to 2.2s
       const settle = Math.min(2.2, gap - Math.max(0.8, d / 16) - 0.3);
       if (settle > 0.6) {
+        closePoss(t - settle); // the ball is placed on the spot — nobody carries it
         pushBall(t - settle, w.x, w.z, BALL_R, 0, true);
         if (e.player) {
           const p = ensurePlayer(e.player, letter, e.position?.id);
@@ -383,6 +420,11 @@ export function reconstructSoccerMatch(
         const len = (pass.length ?? 15) * SX;
         const arc = hName === 'High Pass' ? clamp(2 + len * 0.14, 2.2, 9) : hName === 'Low Pass' ? 1.1 : 0;
         pushBall(t + dur, end.x, end.z, BALL_R, arc, true);
+        closePoss(t);
+        flights.push([t, t + dur]);
+        // a completed pass (no outcome recorded) hands possession to the
+        // recipient the moment the ball arrives
+        if (!pass.outcome && pass.recipient) carrier = { eid: `p${pass.recipient.id}`, t0: t + dur };
         if (pass.recipient) {
           const r = ensurePlayer(pass.recipient, letter);
           pushWp(r.wps, t + dur, end.x, end.z);
@@ -408,6 +450,7 @@ export function reconstructSoccerMatch(
         if (e.player) {
           const p = ensurePlayer(e.player, letter);
           pushWp(p.wps, t + dur, end.x, end.z);
+          openPoss(p.eid, t);
         }
         break;
       }
@@ -422,6 +465,8 @@ export function reconstructSoccerMatch(
         const distM = Math.hypot(end.x - start.x, end.z - start.z);
         const dur = Math.max(0.2, e.duration ?? distM / 20);
         pushBall(t + dur, end.x, end.z, endH, Math.max(endH, 0.2), true);
+        closePoss(t);
+        flights.push([t, t + dur]);
 
         const who = e.player ? displayName(e.player) : 'Shot';
         const actor = e.player ? `p${e.player.id}` : undefined;
@@ -503,7 +548,30 @@ export function reconstructSoccerMatch(
         break;
       }
 
+      case 'Ball Receipt*': {
+        // a controlled receipt (no outcome = clean) puts the ball at this
+        // player's feet until something else happens to it
+        if (e.player && !e.ball_receipt?.outcome) openPoss(`p${e.player.id}`, t);
+        break;
+      }
+
+      case 'Dribble': {
+        if (e.player) openPoss(`p${e.player.id}`, t);
+        break;
+      }
+
+      case 'Miscontrol':
+      case 'Clearance':
+      case '50/50':
+      case 'Foul Won':
+      case 'Shield':
+      case 'Out': {
+        closePoss(t);
+        break;
+      }
+
       case 'Goal Keeper': {
+        closePoss(t);
         const gkType = e.goalkeeper?.type.name ?? '';
         if ((gkType === 'Shot Saved' || gkType === 'Penalty Saved') && e.player && e.period < 5) {
           const w = e.location ? toWorld(e.location, letter, e.period) : undefined;
@@ -522,6 +590,7 @@ export function reconstructSoccerMatch(
       }
 
       case 'Duel': {
+        closePoss(t);
         if (e.player && e.duel?.type?.name === 'Tackle') {
           irEvents.push({
             t,
@@ -538,6 +607,7 @@ export function reconstructSoccerMatch(
 
       case 'Interception':
       case 'Ball Recovery': {
+        closePoss(t);
         if (e.player) {
           irEvents.push({
             t,
@@ -551,6 +621,7 @@ export function reconstructSoccerMatch(
       }
 
       case 'Dispossessed': {
+        closePoss(t);
         if (e.player)
           irEvents.push({ t, type: 'turnover', actor: `p${e.player.id}`, team: letter, importance: 0.18 });
         break;
@@ -558,6 +629,7 @@ export function reconstructSoccerMatch(
 
       case 'Foul Committed':
       case 'Bad Behaviour': {
+        closePoss(t);
         const card = (e.foul_committed?.card ?? e.bad_behaviour?.card)?.name;
         const who = e.player ? displayName(e.player) : 'Foul';
         if (card) {
@@ -621,6 +693,20 @@ export function reconstructSoccerMatch(
         break;
       }
     }
+  }
+
+  closePoss(duration);
+
+  // finalize possession spans: time-ordered, non-overlapping, indexed by player
+  possSpans.sort((a, b) => a.t0 - b.t0);
+  for (let i = 0; i < possSpans.length - 1; i++)
+    possSpans[i].t1 = Math.min(possSpans[i].t1, possSpans[i + 1].t0);
+  flights.sort((a, b) => a[0] - b[0]);
+  const spansByEid = new Map<string, PossSpan[]>();
+  for (const sp of possSpans) {
+    let list = spansByEid.get(sp.eid);
+    if (!list) spansByEid.set(sp.eid, (list = []));
+    list.push(sp);
   }
 
   irEvents.unshift({
@@ -698,6 +784,9 @@ export function reconstructSoccerMatch(
           const d = Math.hypot(b.x - a.x, b.z - a.z);
           const travel = clamp(d / 16, 0.8, Math.min(6, gap * 0.8));
           f01 = t < b.t - travel ? 0 : smooth((t - (b.t - travel)) / travel);
+        } else if (b.arc === 0) {
+          // ground ball: friction — leaves the boot quick, decelerates in
+          f01 = 1 - Math.pow(1 - f01, 1.6);
         }
         x = lerp(a.x, b.x, f01);
         z = lerp(a.z, b.z, f01);
@@ -709,7 +798,10 @@ export function reconstructSoccerMatch(
       ballTrack.y[f] = Math.max(BALL_R, y);
       ballTrack.z[f] = z;
     }
-    // speed + heading from finite differences
+  }
+  // speed + heading from finite differences (rerun after the possession pass
+  // below rewrites possessed frames)
+  const deriveBall = () => {
     for (let f = 0; f < ballFrames; f++) {
       const g = Math.min(f + 1, ballFrames - 1);
       const dx = (ballTrack.x[g] - ballTrack.x[f]) * BALL_HZ;
@@ -718,7 +810,8 @@ export function reconstructSoccerMatch(
       ballTrack.heading[f] =
         Math.hypot(dx, dz) > 0.5 ? Math.atan2(dx, dz) : f > 0 ? ballTrack.heading[f - 1] : 0;
     }
-  }
+  };
+  deriveBall();
 
   // ---- player dense tracks -------------------------------------------------
   const entities: Entity[] = [{ id: 'ball', role: 'ball' }];
@@ -774,6 +867,23 @@ export function reconstructSoccerMatch(
     }
     const pushAmt = p.role === 'GK' ? 2.5 : p.role === 'DEF' ? 8 : p.role === 'MID' ? 11 : 13;
 
+    // per-player persona — no two players react to the game identically. A
+    // shared deterministic anchor formula made whole teams translate in
+    // lockstep; individual reaction lag, gains and a slow wander break that.
+    const pr = (salt: number) => hash01p(p.sbId, salt);
+    const lag = p.role === 'GK' ? 0.15 : 0.3 + pr(1) * 0.85;
+    const gainPush = 0.78 + pr(2) * 0.45;
+    const gainZ = p.role === 'GK' ? 0.3 : 0.14 + pr(3) * 0.14;
+    const wanderA = p.role === 'GK' ? 0.35 : 0.9 + pr(4) * 1.3;
+    const w1 = 0.25 + pr(5) * 0.4; // rad/s — slow jockeying drift
+    const w2 = 0.7 + pr(6) * 0.7;
+    const ph1 = pr(7) * TAU;
+    const ph2 = pr(8) * TAU;
+    const ph3 = pr(9) * TAU;
+    const ph4 = pr(10) * TAU;
+    const prefSpeed = 3.0 + pr(11) * 1.6; // off-ball approach pace, m/s
+    const bowDir = pr(12) < 0.5 ? -1 : 1;
+
     const benchIdx = p.letter === 'H' ? benchH++ : benchA++;
     const benchX = (p.letter === 'H' ? -1 : 1) * (6 + (benchIdx % 10) * 2.4);
     const benchZ = HALF_W + 4;
@@ -782,6 +892,8 @@ export function reconstructSoccerMatch(
 
     const wpTimes = p.wps.map((w) => w.t);
     let wi = 0;
+    const mySpans = spansByEid.get(p.eid) ?? [];
+    let mi = 0;
 
     for (let f = 0; f < pFrames; f++) {
       const t = f / PLAYER_HZ;
@@ -792,52 +904,81 @@ export function reconstructSoccerMatch(
         continue;
       }
 
-      // team-shape anchor that follows the ball
+      // team-shape anchor that follows the ball — through this player's own
+      // reaction lag and gains, plus a slow wander so nobody is statue-still
       const s = dirOf(p.letter, periodAt(t));
-      const ball = ballAt(t);
+      const ball = ballAt(Math.max(0, t - lag));
       const ballTX = ball.x * s; // ball in team frame
       const ballTZ = ball.z * s;
-      const push = clamp(ballTX / HALF_L, -1, 1) * pushAmt;
-      const zbias = clamp(ballTZ * 0.22, -8, 8);
-      const ax = clamp((mx + push) * s, -HALF_L + 1, HALF_L - 1);
-      const az = clamp((mz + zbias) * s, -HALF_W + 1, HALF_W - 1);
+      const push = clamp(ballTX / HALF_L, -1, 1) * pushAmt * gainPush;
+      const zbias = clamp(ballTZ * gainZ, -9, 9);
+      const wx = (Math.sin(t * w1 + ph1) + 0.4 * Math.sin(t * w2 + ph2)) * wanderA;
+      const wz = (Math.cos(t * w1 * 0.83 + ph3) + 0.4 * Math.sin(t * w2 * 1.13 + ph4)) * wanderA;
+      const ax = clamp((mx + push) * s + wx, -HALF_L + 1, HALF_L - 1);
+      const az = clamp((mz + zbias) * s + wz, -HALF_W + 1, HALF_W - 1);
 
-      // pull onto real waypoints when one is near in time
+      // real waypoints pin the player; between them, move like a footballer:
+      // linger, then set off in time to arrive at a natural pace. (The old
+      // constant-velocity slide and the mid-gap target snap both read as
+      // robotic — and the snap caused visible position pops.)
       while (wi < wpTimes.length - 1 && wpTimes[wi + 1] <= t) wi++;
       const prev = p.wps[wi] && wpTimes[wi] <= t ? p.wps[wi] : undefined;
       const next = wpTimes[wi] > t ? p.wps[wi] : p.wps[wi + 1];
 
-      const WINDOW = 7;
-      let wpX = ax;
-      let wpZ = az;
-      let wgt = 0;
-      if (prev && next && next.t > prev.t) {
+      let x = ax;
+      let z = az;
+      if (prev && next && next.t > prev.t && next.t - prev.t <= 9) {
         const gap = next.t - prev.t;
-        const f01 = clamp((t - prev.t) / gap, 0, 1);
-        if (gap <= 9) {
-          wpX = lerp(prev.x, next.x, f01);
-          wpZ = lerp(prev.z, next.z, f01);
-          wgt = 1;
-        } else {
-          const wIn = Math.max(0, 1 - (t - prev.t) / WINDOW);
-          const wOut = Math.max(0, 1 - (next.t - t) / WINDOW);
-          wgt = Math.max(wIn, wOut);
-          const target = wIn >= wOut ? prev : next;
-          wpX = target.x;
-          wpZ = target.z;
+        const d = Math.hypot(next.x - prev.x, next.z - prev.z);
+        const travel = clamp(d / prefSpeed, Math.min(0.35, gap), gap);
+        const dep = next.t - travel;
+        const f01 = t <= dep ? 0 : smooth(clamp((t - dep) / travel, 0, 1));
+        x = lerp(prev.x, next.x, f01);
+        z = lerp(prev.z, next.z, f01);
+        if (d > 4 && f01 > 0) {
+          // slight curved run — nobody covers ground in a laser-straight line
+          const bow = Math.sin(f01 * Math.PI) * Math.min(d * 0.07, 1.7) * bowDir;
+          x += (-(next.z - prev.z) / d) * bow;
+          z += ((next.x - prev.x) / d) * bow;
         }
-      } else if (prev) {
-        wgt = Math.max(0, 1 - (t - prev.t) / WINDOW);
-        wpX = prev.x;
-        wpZ = prev.z;
-      } else if (next) {
-        wgt = Math.max(0, 1 - (next.t - t) / WINDOW);
-        wpX = next.x;
-        wpZ = next.z;
+        if (f01 <= 0) {
+          // lingering on the spot: a hint of wander keeps them alive
+          x += wx * 0.3;
+          z += wz * 0.3;
+        }
+      } else {
+        // long gap (or no bracketing waypoint): relax from the last real spot
+        // back into team shape, then set off in time to make the next one
+        if (prev) {
+          const relax = smooth(clamp(1 - (t - prev.t) / 6, 0, 1));
+          x = lerp(x, prev.x, relax);
+          z = lerp(z, prev.z, relax);
+        }
+        if (next) {
+          const dA = Math.hypot(next.x - x, next.z - z);
+          const travel = clamp(dA / prefSpeed, 0.5, 8);
+          const appr = smooth(clamp(1 - (next.t - t) / travel, 0, 1));
+          x = lerp(x, next.x, appr);
+          z = lerp(z, next.z, appr);
+        }
       }
 
-      track.x[f] = lerp(ax, wpX, wgt);
-      track.z[f] = lerp(az, wpZ, wgt);
+      // while THIS player has the ball, stay with it — the waypoint schedule
+      // doesn't know about possession and would happily wander a keeper (or a
+      // slow-carrying midfielder) away from a ball at their feet
+      while (mi < mySpans.length && mySpans[mi].t1 < t) mi++;
+      if (mi < mySpans.length && t >= mySpans[mi].t0) {
+        const sp = mySpans[mi];
+        const bp = ballAt(t);
+        const d = Math.hypot(bp.x - x, bp.z - z);
+        const w = 0.75 * clamp((t - sp.t0) / 0.4, 0, 1);
+        if (d < 14 && w > 0) {
+          x = lerp(x, bp.x, w);
+          z = lerp(z, bp.z, w);
+        }
+      }
+      track.x[f] = x;
+      track.z[f] = z;
     }
 
     // smooth (two 5-tap passes ≈ 0.5s window at 8Hz) then derive speed/heading
@@ -853,7 +994,35 @@ export function reconstructSoccerMatch(
         track.z[f] = nz;
       }
     }
+    // hard cap on implied ground speed — freeze-frame pins and long-gap pulls
+    // can otherwise demand superhuman glides. Resets across bench and period
+    // boundaries (legitimate teleports, not gameplay).
+    {
+      const MAXD = 9.2 / PLAYER_HZ;
+      let lx = track.x[0];
+      let lz = track.z[0];
+      for (let f = 1; f < pFrames; f++) {
+        const t = f / PLAYER_HZ;
+        const freeMove =
+          !onAt(t) ||
+          !onAt((f - 1) / PLAYER_HZ) ||
+          periodStarts.some(({ t0 }) => t >= t0 - 0.5 && t < t0 + PERIOD_PAD + 1);
+        if (!freeMove) {
+          const dx = track.x[f] - lx;
+          const dz = track.z[f] - lz;
+          const d = Math.hypot(dx, dz);
+          if (d > MAXD) {
+            track.x[f] = lx + (dx / d) * MAXD;
+            track.z[f] = lz + (dz / d) * MAXD;
+          }
+        }
+        lx = track.x[f];
+        lz = track.z[f];
+      }
+    }
+
     let heading = p.letter === 'H' ? 0 : Math.PI;
+    const MAXTURN = 5.5 / PLAYER_HZ; // rad per frame — nobody whips around instantly
     for (let f = 0; f < pFrames; f++) {
       const t = f / PLAYER_HZ;
       if (!onAt(t)) {
@@ -872,10 +1041,113 @@ export function reconstructSoccerMatch(
       const dz = (track.z[g] - track.z[f]) * PLAYER_HZ;
       const sp = Math.min(Math.hypot(dx, dz), 9.5);
       track.speed[f] = sp;
-      if (sp > 0.5) heading = Math.atan2(dx, dz);
+      // moving fast → face travel; slow → square up to the ball (jockeying),
+      // the way real off-ball players track the game
+      let target = heading;
+      const b = ballAt(t);
+      const bdx = b.x - track.x[f];
+      const bdz = b.z - track.z[f];
+      const ballNear = Math.hypot(bdx, bdz) < 1.5; // carrier: keep travel heading
+      if (sp > 2.2) {
+        target = Math.atan2(dx, dz);
+      } else if (sp > 0.7) {
+        const vh = Math.atan2(dx, dz);
+        target = ballNear ? vh : lerpAngle(Math.atan2(bdx, bdz), vh, clamp((sp - 0.7) / 1.5, 0, 1));
+      } else if (!ballNear) {
+        target = Math.atan2(bdx, bdz);
+      }
+      let dAng = (target - heading) % TAU;
+      if (dAng > Math.PI) dAng -= TAU;
+      else if (dAng < -Math.PI) dAng += TAU;
+      heading += clamp(dAng, -MAXTURN, MAXTURN);
       track.heading[f] = heading;
       track.action[f] = actionFromSpeed(sp);
     }
+  }
+
+  // ---- glue the possessed ball to its carrier ---------------------------------
+  // Wherever the possession model says someone has the ball (and it isn't
+  // mid-flight), place it at the carrier's feet — sampled from their FINAL
+  // smoothed track, so the two can never disagree — pushed a touch ahead along
+  // their facing with a distance-driven rhythm so dribbles read as pushes, not
+  // a ball welded to the shin. A rate-limited blend and a disagreement guard
+  // keep handoffs, deflections and data noise from popping.
+  {
+    const sTmp: Sample = { x: 0, y: 0, z: 0, speed: 0, heading: 0, action: 0 };
+    let si = 0;
+    let fi = 0;
+    let attach = 0; // rate-limited blend weight toward the carrier's foot
+    let lastFx = 0;
+    let lastFz = 0;
+    let touchDist = 0; // carrier metres travelled this span — drives touch rhythm
+    let lastSpan: PossSpan | null = null;
+    let pcx = 0;
+    let pcz = 0;
+
+    for (let f = 0; f < ballFrames; f++) {
+      const t = f / BALL_HZ;
+      while (si < possSpans.length && possSpans[si].t1 < t) si++;
+      while (fi < flights.length && flights[fi][1] < t) fi++;
+      const span = si < possSpans.length && t >= possSpans[si].t0 ? possSpans[si] : null;
+      const inFlight = fi < flights.length && t >= flights[fi][0] && t <= flights[fi][1];
+
+      let target = 0;
+      const tr = span && !inFlight ? tracks[span.eid] : undefined;
+      if (span && tr) {
+        sampleTrack(tr, t, sTmp);
+        if (span !== lastSpan) touchDist = 0;
+        else touchDist += Math.hypot(sTmp.x - pcx, sTmp.z - pcz);
+        lastSpan = span;
+        pcx = sTmp.x;
+        pcz = sTmp.z;
+        // a touch every ~3m: ball pushed ahead, carrier runs onto it
+        const pulse = 0.45 + 0.55 * Math.max(0, Math.sin((touchDist / 3) * TAU));
+        const lead = 0.3 + clamp(sTmp.speed * 0.17, 0, 1.0) * pulse;
+        const fx = sTmp.x + Math.sin(sTmp.heading) * lead;
+        const fz = sTmp.z + Math.cos(sTmp.heading) * lead;
+        const dev = Math.hypot(fx - ballTrack.x[f], fz - ballTrack.z[f]);
+        const onPitch = Math.abs(sTmp.x) < HALF_L && Math.abs(sTmp.z) < HALF_W;
+        // engage only when carrier and waypoint-ball agree; once engaged, stay
+        // sticky (ball-at-foot IS the truth then) unless they truly desync
+        const sticky = attach > 0.9;
+        if (onPitch && (sticky ? dev < 12 : dev < 5 && ballTrack.y[f] < 1.4)) {
+          target = 1;
+          lastFx = fx;
+          lastFz = fz;
+        }
+      } else {
+        lastSpan = null;
+      }
+      // ramp on gently (~0.25s), release fast (~0.15s, masked by the kick).
+      // While releasing, keep blending toward the last foot spot so flights
+      // visually originate at the boot rather than popping to the waypoint.
+      attach += clamp(target - attach, -6.5 / BALL_HZ, 4 / BALL_HZ);
+      if (attach > 0.002) {
+        ballTrack.x[f] = lerp(ballTrack.x[f], lastFx, attach);
+        ballTrack.z[f] = lerp(ballTrack.z[f], lastFz, attach);
+        ballTrack.y[f] = Math.max(BALL_R, lerp(ballTrack.y[f], BALL_R, attach));
+      }
+    }
+    // the attach/release blends can briefly imply superball speeds when they
+    // let go across a distance — cap to the waypoint-repair ceiling and let
+    // the ball catch up over a few frames instead of streaking
+    {
+      const MAXD = 45 / BALL_HZ;
+      let lx = ballTrack.x[0];
+      let lz = ballTrack.z[0];
+      for (let f = 1; f < ballFrames; f++) {
+        const dx = ballTrack.x[f] - lx;
+        const dz = ballTrack.z[f] - lz;
+        const d = Math.hypot(dx, dz);
+        if (d > MAXD) {
+          ballTrack.x[f] = lx + (dx / d) * MAXD;
+          ballTrack.z[f] = lz + (dz / d) * MAXD;
+        }
+        lx = ballTrack.x[f];
+        lz = ballTrack.z[f];
+      }
+    }
+    deriveBall();
   }
 
   // ---- assemble ----------------------------------------------------------------

@@ -65,18 +65,18 @@ export default function Ball({ track, sport }: { track: Track; sport: Sport }) {
     const s = sampleTrack(track, t, tmp);
     const target = new THREE.Vector3(s.x, Math.max(radius, s.y), s.z);
 
-    // Low-pass the sampled position: tracks are stored at 25Hz and linear
-    // interpolation between samples leaves visible velocity kinks / jitter at
-    // 60–120fps render rates. A short (~70ms) exponential smoothing rides out
-    // the kinks without noticeably lagging fast shots. Snap on seeks or
-    // genuine teleports so the ball never "lasers" across the field.
+    // Low-pass the sampled position: linear interpolation between samples
+    // leaves visible velocity kinks / jitter at 60–120fps render rates. Keep
+    // it SHORT (~40ms): the possessed ball is glued to the carrier's feet in
+    // the track itself, and a longer lag here would drag it off the boot.
+    // Snap on seeks or genuine teleports so the ball never "lasers" across.
     const sm = smooth.current;
     const dtm = t - prev.current.t;
     if (!sm.init || Math.abs(dtm) > 0.5 || sm.pos.distanceTo(target) > 12) {
       sm.pos.copy(target);
       sm.init = true;
     } else {
-      sm.pos.lerp(target, 1 - Math.exp(-Math.min(delta, 0.1) * 14));
+      sm.pos.lerp(target, 1 - Math.exp(-Math.min(delta, 0.1) * 24));
     }
     m.position.copy(sm.pos);
 
@@ -112,11 +112,11 @@ export default function Ball({ track, sport }: { track: Track; sport: Sport }) {
 
   return (
     <Trail
-      width={radius * 9}
-      length={2.6}
+      width={radius * 6}
+      length={1.7}
       color={new THREE.Color(trailColor)}
       attenuation={(w) => w * w * w}
-      decay={2.4}
+      decay={3.2}
     >
       <group ref={roller}>
         <Suspense fallback={<SphereBall radius={radius} mat={fallbackMat} />}>{visual}</Suspense>
