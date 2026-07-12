@@ -38,6 +38,13 @@ export interface KitSpec {
   socks: string;
   numberColor: string;
   skin: string;
+  /** goalkeeper variant — a color distinct from BOTH teams' outfield shirts */
+  gk?: {
+    primary: string;
+    shorts: string;
+    socks: string;
+    numberColor: string;
+  };
 }
 
 export interface TeamInfo {
@@ -103,6 +110,7 @@ export type EventType =
   | 'save'
   | 'tackle'
   | 'turnover'
+  | 'clearance'
   | 'out'
   | 'restart'
   | 'foul'
@@ -126,6 +134,7 @@ export type AnimIntent =
   | 'shot_finish'
   | 'tackle'
   | 'header'
+  | 'throw'
   | 'save'
   | 'celebration'
   | 'jumpshot'
@@ -148,6 +157,12 @@ export interface MatchEvent {
   /** 0..1 dramatic importance — drives camera director & timeline markers */
   importance?: number;
   text?: string;
+  /**
+   * Ephemeral "happening right now" line for the action ticker — present on
+   * routine play (every pass, carry, throw-in…) that would flood the saved
+   * commentary feed, which only reads `text`.
+   */
+  live?: string;
 }
 
 export interface VideoRef {

@@ -74,7 +74,10 @@ export default function Minimap() {
         const px = toX(smp.x);
         const py = toY(smp.z);
         ctx.beginPath();
-        ctx.fillStyle = team?.kit.primary ?? '#fff';
+        ctx.fillStyle =
+          (p.position === 'GK' ? team?.kit.gk?.primary : team?.kit.primary) ??
+          team?.kit.primary ??
+          '#fff';
         ctx.arc(px, py, p.position === 'GK' ? 2.5 : 3, 0, Math.PI * 2);
         ctx.fill();
         ctx.lineWidth = 0.5;

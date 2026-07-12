@@ -112,6 +112,19 @@ interface AthleteProps {
   sport?: Sport;
 }
 
+// ---- goalkeeper glove prop (parented to the hand bones) ----
+
+// shared module-lifetime material, like the racket's
+const gloveMat = new THREE.MeshStandardMaterial({ color: '#e8eaee', roughness: 0.82 });
+
+/** Ellipsoid stretched along the fingers (hand-local +Y), padded like a real
+ * keeper glove — deliberately oversized so it reads at broadcast distance. */
+function gloveGeometry(): THREE.SphereGeometry {
+  const g = new THREE.SphereGeometry(0.048, 12, 10);
+  g.scale(1.25, 1.7, 0.85);
+  return g;
+}
+
 // ---- tennis racket prop (procedural, parented to the right hand bone) ----
 
 const racketMats = {
@@ -149,8 +162,10 @@ function buildRacket(): THREE.Group {
 }
 
 interface OverlayState {
-  kind: 'kick' | 'reach' | 'swing';
+  kind: 'kick' | 'reach' | 'swing' | 'throw' | 'header';
   w: number;
+  /** release/flick weight for two-beat moves (throw snap, header contact) */
+  w2?: number;
 }
 
 function smoothPulse(x: number, up: number, holdEnd: number, end: number): number {
@@ -182,15 +197,19 @@ export default function Athlete({ id, track, kit, number, isGK, events, sport }:
         const mat = (src as THREE.MeshStandardMaterial).clone();
         switch (mat.name.split('.')[0]) {
           case 'Jersey':
-            mat.color.set(isGK ? mixHex(kit.primary, '#101014', 0.55) : kit.primary);
+            mat.color.set(
+              isGK ? (kit.gk?.primary ?? mixHex(kit.primary, '#101014', 0.55)) : kit.primary
+            );
             mat.roughness = 0.68;
             break;
           case 'Shorts':
-            mat.color.set(isGK ? mixHex(kit.shorts, '#101014', 0.4) : kit.shorts);
+            mat.color.set(
+              isGK ? (kit.gk?.shorts ?? mixHex(kit.shorts, '#101014', 0.4)) : kit.shorts
+            );
             mat.roughness = 0.72;
             break;
           case 'Socks':
-            mat.color.set(kit.socks);
+            mat.color.set(isGK ? (kit.gk?.socks ?? kit.socks) : kit.socks);
             mat.roughness = 0.78;
             break;
           case 'Boots':
@@ -214,10 +233,11 @@ export default function Athlete({ id, track, kit, number, isGK, events, sport }:
   }, [scene, kit, isGK, id]);
 
   // back number: small decal plane parented to the upper spine bone
+  const numberColor = (isGK && kit.gk?.numberColor) || kit.numberColor;
   useEffect(() => {
     const spine = obj.getObjectByName('spine_03') ?? obj.getObjectByName('spine_02');
     if (!spine) return;
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.3), numberMaterial(number, kit.numberColor));
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.3), numberMaterial(number, numberColor));
     plane.name = 'backnumber';
     plane.position.set(0, 0.08, -0.16);
     plane.rotation.y = Math.PI;
@@ -226,7 +246,30 @@ export default function Athlete({ id, track, kit, number, isGK, events, sport }:
       spine.remove(plane);
       plane.geometry.dispose();
     };
-  }, [obj, number, kit.numberColor]);
+  }, [obj, number, numberColor]);
+
+  // goalkeeper gloves: chunky ellipsoids over each hand bone (the athlete mesh
+  // has no separate hand material to tint, so the gloves are added geometry)
+  useEffect(() => {
+    if (!isGK) return;
+    const added: { bone: THREE.Object3D; mesh: THREE.Mesh }[] = [];
+    for (const name of ['hand_l', 'hand_r']) {
+      const hand = obj.getObjectByName(name);
+      if (!hand) continue;
+      const mesh = new THREE.Mesh(gloveGeometry(), gloveMat);
+      mesh.name = 'gkglove';
+      mesh.position.set(0, 0.05, 0.005);
+      mesh.castShadow = true;
+      hand.add(mesh);
+      added.push({ bone: hand, mesh });
+    }
+    return () => {
+      for (const { bone, mesh } of added) {
+        bone.remove(mesh);
+        mesh.geometry.dispose();
+      }
+    };
+  }, [obj, isGK]);
 
   // tennis: racket in the right hand (geometry disposed on unmount; materials
   // are shared module-lifetime)
@@ -277,6 +320,10 @@ export default function Athlete({ id, track, kit, number, isGK, events, sport }:
     fullBody: '' as '' | 'celebrate' | 'dive' | 'hit',
     prevT: playhead.t,
     phase: hash01(id, 7) * 2, // desync loop starts between players
+    /** additive bone rotations applied last frame, so they can be undone —
+     * the mixer only rewrites bone transforms while clip time advances, so
+     * on paused frames an un-undone additive accumulates without bound */
+    overlayApplied: [] as [string, 'x' | 'y' | 'z', number][],
   });
 
   const actorEvents = useMemo(
@@ -291,7 +338,11 @@ export default function Athlete({ id, track, kit, number, isGK, events, sport }:
       calfR: obj.getObjectByName('calf_r') as THREE.Object3D | null,
       upperarmL: obj.getObjectByName('upperarm_l') as THREE.Object3D | null,
       upperarmR: obj.getObjectByName('upperarm_r') as THREE.Object3D | null,
+      lowerarmL: obj.getObjectByName('lowerarm_l') as THREE.Object3D | null,
+      lowerarmR: obj.getObjectByName('lowerarm_r') as THREE.Object3D | null,
       spine: obj.getObjectByName('spine_02') as THREE.Object3D | null,
+      neck: obj.getObjectByName('neck_01') as THREE.Object3D | null,
+      head: obj.getObjectByName('Head') as THREE.Object3D | null,
     };
   }, [obj]);
 
@@ -377,14 +428,39 @@ export default function Athlete({ id, track, kit, number, isGK, events, sport }:
       }
     }
 
+    // undo last frame's additive overlay BEFORE the mixer runs: while playing
+    // the mixer overwrites this anyway; while paused it does not, and the
+    // overlay would otherwise compound every frame
+    for (const [k, axis, v] of state.current.overlayApplied) {
+      const b = bones[k as keyof typeof bones];
+      if (b) b.rotation[axis] -= v;
+    }
+    state.current.overlayApplied.length = 0;
+
     mixer.update(dtm);
 
     // ---- procedural overlays (post-mixer additive bone rotations) ----
     let overlay: OverlayState | null = null;
     for (const e of actorEvents) {
       const dt = t - e.t;
-      if ((e.animIntent === 'shot_finish' || e.type === 'pass') && dt >= -0.12 && dt < 0.42) {
+      // kick only for genuinely footed strikes — throw-ins and headers are
+      // pass events too, but they carry their own intents
+      if ((e.animIntent === 'shot_finish' || e.animIntent === 'pass') && dt >= -0.12 && dt < 0.42) {
         overlay = { kind: 'kick', w: smoothPulse(dt + 0.12, 0.08, 0.22, 0.54) };
+      } else if (e.animIntent === 'throw' && dt >= -0.7 && dt < 0.5) {
+        // long windup: ball raised behind the head, held, then snapped through
+        overlay = {
+          kind: 'throw',
+          w: smoothPulse(dt + 0.7, 0.25, 0.95, 1.2),
+          w2: dt >= -0.08 ? smoothPulse(dt + 0.08, 0.07, 0.18, 0.45) : 0,
+        };
+      } else if (e.animIntent === 'header' && dt >= -0.3 && dt < 0.55) {
+        // rise, arch back, flick the head through the ball at contact
+        overlay = {
+          kind: 'header',
+          w: smoothPulse(dt + 0.3, 0.16, 0.4, 0.85),
+          w2: dt >= -0.06 ? smoothPulse(dt + 0.06, 0.05, 0.15, 0.36) : 0,
+        };
       } else if ((e.animIntent === 'dunk' || e.animIntent === 'jumpshot') && dt >= -0.1 && dt < 0.5) {
         overlay = { kind: 'reach', w: smoothPulse(dt + 0.1, 0.08, 0.3, 0.6) };
       } else if (
@@ -397,17 +473,44 @@ export default function Athlete({ id, track, kit, number, isGK, events, sport }:
     }
     if (overlay && overlay.w > 0.001) {
       const w = overlay.w;
+      // every additive is recorded so next frame can undo it (see above)
+      const addRot = (key: keyof typeof bones, d: number, axis: 'x' | 'y' | 'z' = 'x') => {
+        const b = bones[key];
+        if (!b) return;
+        b.rotation[axis] += d;
+        state.current.overlayApplied.push([key, axis, d]);
+      };
       if (overlay.kind === 'kick') {
-        if (bones.thighR) bones.thighR.rotation.x -= w * 1.15; // leg whips forward
-        if (bones.calfR) bones.calfR.rotation.x += w * 0.35;
-        if (bones.upperarmL) bones.upperarmL.rotation.x -= w * 0.5; // balance arm
-        if (bones.spine) bones.spine.rotation.x += w * 0.18;
+        addRot('thighR', -w * 1.15); // leg whips forward
+        addRot('calfR', w * 0.35);
+        addRot('upperarmL', -w * 0.5); // balance arm
+        addRot('spine', w * 0.18);
+      } else if (overlay.kind === 'throw') {
+        // this rig: upperarm x+ raises the arm, lowerarm x- curls the fist
+        // up; trunk pitch is z (z- arches back, z+ snaps forward)
+        // — both hands overhead, back arched, then the trunk whips the ball
+        // out while the arms stay high (dropping them reads as flapping)
+        const rel = overlay.w2 ?? 0;
+        addRot('upperarmL', w * (2.45 - rel * 0.35));
+        addRot('upperarmR', w * (2.45 - rel * 0.35));
+        addRot('lowerarmL', -w * (0.85 - rel * 0.5));
+        addRot('lowerarmR', -w * (0.85 - rel * 0.5));
+        addRot('spine', -w * 0.25 + rel * 0.5, 'z');
+        addRot('neck', -w * 0.15 + rel * 0.25, 'z');
+      } else if (overlay.kind === 'header') {
+        // leave the ground, arch back, then snap head and shoulders through
+        // the ball — the flick lives mostly in the neck
+        const flick = overlay.w2 ?? 0;
+        g.position.y += w * 0.25;
+        addRot('spine', -w * 0.28 + flick * 0.5, 'z');
+        addRot('neck', -w * 0.38 + flick * 0.85, 'z');
+        addRot('head', -w * 0.18 + flick * 0.5, 'z');
+        addRot('upperarmL', w * 0.9); // arms brace wide for balance
+        addRot('upperarmR', w * 0.9);
       } else if (overlay.kind === 'reach' || overlay.kind === 'swing') {
-        if (bones.upperarmR) {
-          bones.upperarmR.rotation.x -= w * (overlay.kind === 'reach' ? 2.2 : 1.4);
-          bones.upperarmR.rotation.z -= w * 0.3;
-        }
-        if (bones.spine) bones.spine.rotation.x -= w * 0.12;
+        addRot('upperarmR', -w * (overlay.kind === 'reach' ? 2.2 : 1.4));
+        addRot('upperarmR', -w * 0.3, 'z');
+        addRot('spine', -w * 0.12);
       }
     }
   });

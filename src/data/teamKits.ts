@@ -288,9 +288,32 @@ export function kitFor(teamName: string): KitSpec {
   return KITS[normalizeName(teamName)] ?? fallbackKit(teamName);
 }
 
+// classic keeper shirts — loud on purpose, that's the point of a GK kit
+const GK_PALETTE = ['#CDDC2A', '#FF8C1A', '#00C471', '#1FB6CF', '#D4408F', '#9AA1AC'];
+
+function gkKit(avoid: string[]): NonNullable<KitSpec['gk']> {
+  let best = GK_PALETTE[0];
+  let bestScore = -1;
+  for (const c of GK_PALETTE) {
+    const score = Math.min(...avoid.map((x) => colorDist(c, x)));
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return {
+    primary: best,
+    shorts: darken(best, 0.45),
+    socks: darken(best, 0.8),
+    numberColor: luma(best) > 0.5 ? '#111111' : '#FFFFFF',
+  };
+}
+
 /**
  * Kits for a fixture: away side switches to a change kit when the two primaries
- * would be indistinguishable on the pitch (the real-world clash rule).
+ * would be indistinguishable on the pitch (the real-world clash rule), and each
+ * side's goalkeeper gets a kit distinct from both outfield shirts AND the
+ * opposite keeper — four separable colors, like a real broadcast.
  */
 export function kitsForFixture(home: string, away: string): [KitSpec, KitSpec] {
   const h = kitFor(home);
@@ -312,7 +335,14 @@ export function kitsForFixture(home: string, away: string): [KitSpec, KitSpec] {
       numberColor: altNumber,
     };
   }
-  return [h, a];
+  // '#3d8550' ≈ the broadcast pitch green (scene theme grassBase→grassTip):
+  // a keeper must also stand out against the grass itself
+  const hGk = gkKit([h.primary, a.primary, '#3d8550']);
+  const aGk = gkKit([h.primary, a.primary, '#3d8550', hGk.primary]);
+  return [
+    { ...h, gk: hGk },
+    { ...a, gk: aGk },
+  ];
 }
 
 /** Team accent for UI chrome (row hover, scoreboard chip). */

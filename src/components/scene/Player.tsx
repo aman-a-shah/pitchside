@@ -162,7 +162,9 @@ export default function Player({
   const mats = useMemo(() => {
     const rough = hash01(id, 3);
     const jersey = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(isGK ? mixHex(kit.primary, '#101014', 0.55) : kit.primary),
+      color: new THREE.Color(
+        isGK ? (kit.gk?.primary ?? mixHex(kit.primary, '#101014', 0.55)) : kit.primary
+      ),
       roughness: 0.66 + (rough - 0.5) * 0.1,
       metalness: 0.02,
     });
@@ -172,11 +174,11 @@ export default function Player({
       metalness: 0.02,
     });
     const shorts = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(isGK ? mixHex(kit.shorts, '#101014', 0.4) : kit.shorts),
+      color: new THREE.Color(isGK ? (kit.gk?.shorts ?? mixHex(kit.shorts, '#101014', 0.4)) : kit.shorts),
       roughness: 0.72,
     });
     const socks = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(kit.socks),
+      color: new THREE.Color(isGK ? (kit.gk?.socks ?? kit.socks) : kit.socks),
       roughness: 0.78,
     });
     const skin = new THREE.MeshStandardMaterial({
@@ -195,9 +197,10 @@ export default function Player({
     return { jersey, trim, shorts, socks, skin, hair, boot, glove };
   }, [kit, isGK, id]);
 
+  const numberColor = (isGK && kit.gk?.numberColor) || kit.numberColor;
   const numberMat = useMemo(
-    () => numberMaterial(number, kit.numberColor),
-    [number, kit.numberColor]
+    () => numberMaterial(number, numberColor),
+    [number, numberColor]
   );
 
   const handMat = isGK ? mats.glove : mats.skin;
