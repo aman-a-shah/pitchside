@@ -309,6 +309,12 @@ export function reconstructSoccerMatch(
     'Dribble', 'Shield', 'Foul Won',
   ]);
 
+  // dead-ball restarts: the ball must be PLACED and at rest before it's
+  // struck. Without this the dense-track easing has the ball arrive at the
+  // spot at the exact instant of the kick, still moving flat out — goal
+  // kicks looked like the ball was struck from a random spot mid-flight.
+  const RESTART_PASSES = new Set(['Goal Kick', 'Corner', 'Free Kick', 'Throw-in', 'Kick Off']);
+
   const kickoffOfPeriod = new Set<number>();
 
   for (const e of events) {
@@ -328,6 +334,30 @@ export function reconstructSoccerMatch(
       if (e.period === 5) {
         sawPens = true;
         irEvents.push({ t: t0, type: 'restart', importance: 0.85, text: 'Penalty shoot-out.' });
+      }
+    }
+
+    // dead-ball restart choreography — MUST run before the generic waypoint
+    // pushes below (pushBall/pushWp merge same-instant entries, so the
+    // earlier "settle" waypoints have to enter the lists first). The ball is
+    // placed on the spot ~2s before the kick and rests there; the taker
+    // arrives and stands over it, then strikes a stationary ball.
+    if (typeName === 'Pass' && e.location && RESTART_PASSES.has(e.pass?.type?.name ?? '')) {
+      const w = toWorld(e.location, letter, e.period);
+      const last = ballWps[ballWps.length - 1];
+      const gap = t - last.t;
+      const d = Math.hypot(w.x - last.x, w.z - last.z);
+      // leave the approach at least its natural travel time (mirrors the
+      // dense-track pace cap), then settle with whatever remains, up to 2.2s
+      const settle = Math.min(2.2, gap - Math.max(0.8, d / 16) - 0.3);
+      if (settle > 0.6) {
+        pushBall(t - settle, w.x, w.z, BALL_R, 0, true);
+        if (e.player) {
+          const p = ensurePlayer(e.player, letter, e.position?.id);
+          const standT = t - Math.min(1.5, settle);
+          const lastWp = p.wps[p.wps.length - 1];
+          if (!lastWp || standT > lastWp.t + 0.3) pushWp(p.wps, standT, w.x, w.z);
+        }
       }
     }
 
