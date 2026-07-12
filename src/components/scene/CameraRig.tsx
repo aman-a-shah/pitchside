@@ -5,7 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useMatch } from '@/state/match';
-import { useClock, playhead } from '@/state/clock';
+import { useClock, playhead, povTarget } from '@/state/clock';
 import { MatchIR, Sample } from '@/ir/types';
 import { sampleTrack } from '@/ir/sampler';
 
@@ -145,11 +145,47 @@ function AutoMode() {
   const wid = ir.fieldSpec.width;
 
   // cinematic director state
-  const shotRef = useRef({ index: 0, start: 0, cut: true });
+  const shotRef = useRef({ name: '', start: 0 });
+  // POV state: current body + when we last re-evaluated who has the ball
+  const povRef = useRef({ id: null as string | null, checked: -1 });
 
   useEffect(() => {
     initialized.current = false;
   }, [mode, followId]);
+
+  // entering/leaving POV: widen the lens to a human field of view, and always
+  // clear the hidden-body channel on the way out
+  useEffect(() => {
+    const persp = camera as THREE.PerspectiveCamera;
+    if (mode === 'pov') {
+      persp.fov = 68;
+      persp.updateProjectionMatrix();
+    }
+    return () => {
+      povTarget.id = null;
+      povRef.current.id = null;
+      persp.fov = 40;
+      persp.updateProjectionMatrix();
+    };
+  }, [mode, camera]);
+
+  /** the player nearest the ball right now (POV auto-follow of possession) */
+  function nearestToBall(t: number): string | null {
+    let best: string | null = null;
+    let bestD = Infinity;
+    for (const e of ir.entities) {
+      if (e.role !== 'player') continue;
+      const tr = ir.tracks[e.id];
+      if (!tr) continue;
+      sampleTrack(tr, t, s);
+      const d = Math.hypot(s.x - ball.current.x, s.z - ball.current.z);
+      if (d < bestD) {
+        bestD = d;
+        best = e.id;
+      }
+    }
+    return best;
+  }
 
   useFrame((_, delta) => {
     const t = playhead.t;
@@ -182,6 +218,45 @@ function AutoMode() {
       lookTarget.current.copy(ent.current).addScaledVector(fwd, 6).setY(1.4);
       lerpPos = 0.12;
       lerpLook = 0.14;
+    } else if (mode === 'pov') {
+      // ---- through the player's eyes ----
+      const pv = povRef.current;
+      // pinned to the followed player if one is chosen; otherwise ride
+      // possession, re-checked twice a second (sticky between checks so the
+      // view doesn't ping-pong in a crowded midfield)
+      if (followId && ir.tracks[followId]) {
+        pv.id = followId;
+      } else if (Math.abs(t - pv.checked) > 0.5 || !pv.id) {
+        pv.checked = t;
+        pv.id = nearestToBall(t) ?? pv.id;
+      }
+      const tr = pv.id ? ir.tracks[pv.id] : undefined;
+      povTarget.id = tr ? pv.id : null;
+      if (tr) {
+        sampleTrack(tr, t, s);
+        // eye height plus a subtle stride bob (match-time driven: freezes on
+        // pause, slows in slow-mo, exactly like the athletes)
+        const bob = Math.sin(t * 9) * 0.018 * Math.min(1, s.speed / 4);
+        desiredPos.current.set(s.x, 1.72 + bob, s.z);
+        // a footballer's gaze: the ball when it's away from the feet, the
+        // pitch ahead when carrying it
+        const dBall = Math.hypot(ball.current.x - s.x, ball.current.z - s.z);
+        if (dBall > 1.4) {
+          lookTarget.current.set(
+            ball.current.x,
+            Math.max(ball.current.y, 0.4),
+            ball.current.z
+          );
+        } else {
+          lookTarget.current.set(
+            s.x + Math.sin(s.heading) * 9,
+            1.5,
+            s.z + Math.cos(s.heading) * 9
+          );
+        }
+        lerpPos = 0.5; // eyes track the body tightly — lag here reads as seasick
+        lerpLook = 0.16;
+      }
     } else {
       // cinematic director
       directorShot(t, delta);
@@ -198,43 +273,97 @@ function AutoMode() {
     camera.lookAt(smoothLook.current);
   });
 
+  /**
+   * The auto-director. A TV production's shot grammar, deterministic in match
+   * time: because the whole future event stream is known, the director cuts
+   * to the right place BEFORE the moment — behind the goal as a shot comes
+   * in, tight on the scorer as the celebration starts — then falls back to a
+   * rotating pattern of standard coverage shots between moments.
+   */
   function directorShot(t: number, delta: number) {
     const sh = shotRef.current;
-    const elapsed = t - sh.start;
-    // find an imminent key event to cut to
-    const upcoming = findKeyEvent(ir, t);
-    const nearGoal = upcoming && upcoming.t - t < 0.4 && upcoming.t - t > -2.5;
-
-    if (elapsed > 6 || sh.start === 0 || (nearGoal && sh.index !== 99)) {
-      sh.index = nearGoal ? 99 : (sh.index + 1) % 4;
-      sh.start = t;
-      sh.cut = true;
-    }
-
     const b = ball.current;
-    if (sh.index === 99 && upcoming) {
-      // dramatic low angle on the event location
-      const ex = upcoming.location ? upcoming.location[0] : b.x;
-      const ez = upcoming.location ? upcoming.location[1] : b.z;
-      desiredPos.current.set(ex * 0.7, 3.4, ez + (ez >= 0 ? 10 : -10));
-      lookTarget.current.set(ex, 1.5, ez);
-    } else if (sh.index === 0) {
-      desiredPos.current.set(b.x * 0.5, len * 0.22, -(wid * 0.5 + len * 0.26));
-      lookTarget.current.set(b.x * 0.8, 2, b.z * 0.4);
-    } else if (sh.index === 1) {
-      desiredPos.current.set(len * 0.52, 8, b.z * 0.6 + 14);
-      lookTarget.current.set(b.x, 1.5, b.z);
-    } else if (sh.index === 2) {
-      desiredPos.current.set(b.x + 12, 2.4, b.z + 12);
-      lookTarget.current.set(b.x, 1.2, b.z);
-    } else {
-      desiredPos.current.set(-len * 0.5, len * 0.18, -(wid * 0.4));
-      lookTarget.current.set(b.x * 0.7, 2, b.z);
+    const cutTo = (name: string) => {
+      if (sh.name !== name) {
+        sh.name = name;
+        sh.start = t;
+        initialized.current = false; // hard cut, like a vision mixer
+      }
+    };
+
+    // ---- hero coverage: goals own the camera from 2s before to 5s after ----
+    const goal = findKeyEvent(ir, t, 'goal', 2.2, 5.4);
+    if (goal) {
+      if (t >= goal.t + 0.35 && goal.actor && ir.tracks[goal.actor]) {
+        // scorer close-up: a slow arc around the celebration
+        sampleTrack(ir.tracks[goal.actor], t, s);
+        const ang = (t - goal.t) * 0.3 + (goal.t % 6.28);
+        cutTo(`cele-${goal.t}`);
+        desiredPos.current.set(s.x + Math.sin(ang) * 6.5, 2.1, s.z + Math.cos(ang) * 6.5);
+        lookTarget.current.set(s.x, 1.25, s.z);
+        return;
+      }
+      // net-cam: low behind the goal the ball is arriving at
+      const gx = (goal.location?.[0] ?? b.x) >= 0 ? 1 : -1;
+      cutTo(`net-${goal.t}`);
+      desiredPos.current.set(gx * (len * 0.5 + 6.5), 2.2, (goal.location?.[1] ?? b.z) * 0.3);
+      lookTarget.current.set(b.x, Math.max(b.y, 0.8), b.z);
+      return;
     }
 
-    if (sh.cut) {
-      initialized.current = false;
-      sh.cut = false;
+    // ---- big chances: anticipate shots/saves with a low dramatic angle ----
+    const chance = findKeyEvent(ir, t, null, 1.6, 2.4);
+    if (chance) {
+      const ex = chance.location ? chance.location[0] : b.x;
+      const ez = chance.location ? chance.location[1] : b.z;
+      cutTo(`chance-${chance.t}`);
+      desiredPos.current.set(ex * 0.72, 2.8, ez + (ez >= 0 ? 9 : -9));
+      lookTarget.current.set(b.x, 1.2, b.z);
+      return;
+    }
+
+    // ---- standard coverage rotation, durations tuned per shot ----
+    const ROTATION: { name: string; dur: number }[] = [
+      { name: 'wide', dur: 7 },
+      { name: 'lowTouch', dur: 4.5 },
+      { name: 'steadicam', dur: 4 },
+      { name: 'crane', dur: 6.5 },
+      { name: 'orbitBall', dur: 5 },
+    ];
+    const idx = Math.max(
+      0,
+      ROTATION.findIndex((r) => r.name === sh.name)
+    );
+    const cur = ROTATION[idx];
+    const inRotation = ROTATION.some((r) => r.name === sh.name);
+    if (!inRotation || t - sh.start > cur.dur || t < sh.start) {
+      const next = inRotation ? ROTATION[(idx + 1) % ROTATION.length] : ROTATION[0];
+      cutTo(next.name);
+    }
+
+    switch (sh.name) {
+      case 'lowTouch': // pitch-level dolly along the near touchline
+        desiredPos.current.set(b.x * 0.78, 1.7, -(wid * 0.5 + 7.5));
+        lookTarget.current.set(b.x, 1.0, b.z);
+        break;
+      case 'steadicam': // tight, moving with the play
+        desiredPos.current.set(b.x + 11, 2.4, b.z + 11);
+        lookTarget.current.set(b.x, 1.2, b.z);
+        break;
+      case 'crane': // high behind the goal the play is moving toward
+        desiredPos.current.set((b.x >= 0 ? 1 : -1) * len * 0.56, 15, b.z * 0.45);
+        lookTarget.current.set(b.x * 0.6, 1.5, b.z * 0.6);
+        break;
+      case 'orbitBall': {
+        // slow orbital drift around the ball
+        const ang = t * 0.16;
+        desiredPos.current.set(b.x + Math.sin(ang) * 13, 4.5, b.z + Math.cos(ang) * 13);
+        lookTarget.current.set(b.x, 1.1, b.z);
+        break;
+      }
+      default: // wide — the classic broadcast frame
+        desiredPos.current.set(b.x * 0.5, len * 0.22, -(wid * 0.5 + len * 0.26));
+        lookTarget.current.set(b.x * 0.8, 2, b.z * 0.4);
     }
     void delta;
   }
@@ -242,11 +371,22 @@ function AutoMode() {
   return null;
 }
 
-function findKeyEvent(ir: MatchIR, t: number) {
+/**
+ * The most relevant high-importance event around `t`: `before` seconds of
+ * anticipation, `after` seconds of aftermath. `type` narrows to one event
+ * type; null accepts any event with importance ≥ 0.7.
+ */
+function findKeyEvent(
+  ir: MatchIR,
+  t: number,
+  type: 'goal' | null,
+  before: number,
+  after: number
+) {
   let best = null as null | (typeof ir.events)[number];
   for (const e of ir.events) {
-    if ((e.importance ?? 0) < 0.7) continue;
-    if (e.t >= t - 2.5 && e.t <= t + 3) {
+    if (type ? e.type !== type : (e.importance ?? 0) < 0.7) continue;
+    if (e.t >= t - after && e.t <= t + before) {
       if (!best || Math.abs(e.t - t) < Math.abs(best.t - t)) best = e;
     }
   }

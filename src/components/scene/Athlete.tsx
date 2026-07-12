@@ -24,7 +24,7 @@ import { useGLTF } from '@react-three/drei';
 import { SkeletonUtils } from 'three-stdlib';
 import { KitSpec, MatchEvent, Sample, Sport, Track } from '@/ir/types';
 import { sampleTrack } from '@/ir/sampler';
-import { playhead } from '@/state/clock';
+import { playhead, povTarget } from '@/state/clock';
 
 useGLTF.preload('/models/characters/athlete.glb');
 
@@ -332,6 +332,8 @@ export default function Athlete({ id, track, kit, number, isGK, events, sport }:
   useFrame(() => {
     const g = root.current;
     if (!g) return;
+    // the POV camera hides the body it's looking through
+    g.visible = povTarget.id !== id;
     const t = playhead.t;
     let dtm = t - state.current.prevT;
     state.current.prevT = t;

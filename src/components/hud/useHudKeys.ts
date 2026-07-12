@@ -43,6 +43,13 @@ export function useHudKeys() {
       const s = useClock.getState();
       const flying = s.cameraMode === 'fly';
 
+      // ⌘K / Ctrl+K — Ask the match (works everywhere, even from inputs)
+      if (e.code === 'KeyK' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        s.setAskOpen(!s.askOpen);
+        return;
+      }
+
       // '?' works everywhere, even mid-fly
       if (e.key === '?' ) {
         e.preventDefault();
@@ -92,9 +99,12 @@ export function useHudKeys() {
           s.setCameraMode('cinematic');
           break;
         case 'Digit3':
-          s.setCameraMode('orbit');
+          s.setCameraMode('pov');
           break;
         case 'Digit4':
+          s.setCameraMode('orbit');
+          break;
+        case 'Digit5':
           s.setCameraMode('fly');
           break;
         case 'KeyF':
@@ -106,6 +116,9 @@ export function useHudKeys() {
           break;
         case 'KeyT':
           s.toggleTactical();
+          break;
+        case 'KeyM':
+          s.toggleSound();
           break;
       }
     };

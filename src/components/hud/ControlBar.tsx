@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { useMatch } from '@/state/match';
 import { CameraMode, playhead, useClock } from '@/state/clock';
 import {
+  IconAsk,
   IconBroadcast,
   IconCinematic,
   IconCollapse,
@@ -23,9 +24,12 @@ import {
   IconPause,
   IconPitch,
   IconPlay,
+  IconPov,
   IconRestart,
   IconBack5,
   IconFwd5,
+  IconSoundOff,
+  IconSoundOn,
   IconStats,
 } from './Icons';
 import RosterPopover from './RosterPopover';
@@ -36,7 +40,8 @@ import styles from './hud.module.css';
 const SPEEDS = [0.25, 1, 2, 4, 8];
 const CAMERAS: { mode: CameraMode; label: string; Icon: (p: { size?: number }) => JSX.Element }[] = [
   { mode: 'broadcast', label: 'Broadcast', Icon: IconBroadcast },
-  { mode: 'cinematic', label: 'Cinematic', Icon: IconCinematic },
+  { mode: 'cinematic', label: 'Director', Icon: IconCinematic },
+  { mode: 'pov', label: 'POV', Icon: IconPov },
   { mode: 'orbit', label: 'Orbit', Icon: IconOrbit },
   { mode: 'fly', label: 'Fly', Icon: IconFly },
 ];
@@ -51,6 +56,8 @@ export default function ControlBar() {
   const statsOpen = useClock((s) => s.statsOpen);
   const rosterOpen = useClock((s) => s.rosterOpen);
   const shortcutsOpen = useClock((s) => s.shortcutsOpen);
+  const askOpen = useClock((s) => s.askOpen);
+  const soundOn = useClock((s) => s.soundOn);
   const showTactical = useClock((s) => s.showTactical);
 
   const toggle = useClock((s) => s.toggle);
@@ -61,6 +68,8 @@ export default function ControlBar() {
   const setStatsOpen = useClock((s) => s.setStatsOpen);
   const setRosterOpen = useClock((s) => s.setRosterOpen);
   const setShortcutsOpen = useClock((s) => s.setShortcutsOpen);
+  const setAskOpen = useClock((s) => s.setAskOpen);
+  const toggleSound = useClock((s) => s.toggleSound);
   const toggleTactical = useClock((s) => s.toggleTactical);
   const play = useClock((s) => s.play);
 
@@ -163,6 +172,15 @@ export default function ControlBar() {
 
       <div className={styles.group}>
         <button
+          className={`${styles.btn} ${styles.cam} ${askOpen ? styles.btnActive : ''}`}
+          onClick={() => setAskOpen(!askOpen)}
+          title="Ask the match (⌘K)"
+          aria-pressed={askOpen}
+        >
+          <IconAsk size={17} />
+          <span className={styles.label}>Ask</span>
+        </button>
+        <button
           className={`${styles.btn} ${styles.cam} ${statsOpen ? styles.btnActive : ''}`}
           onClick={() => setStatsOpen(!statsOpen)}
           title="Match stats (S)"
@@ -182,6 +200,15 @@ export default function ControlBar() {
             <span className={styles.label}>Footage</span>
           </button>
         )}
+        <button
+          className={`${styles.btn} ${soundOn ? styles.btnActive : ''}`}
+          onClick={toggleSound}
+          title="Sound (M)"
+          aria-pressed={soundOn}
+          aria-label={soundOn ? 'Mute sound' : 'Unmute sound'}
+        >
+          {soundOn ? <IconSoundOn size={17} /> : <IconSoundOff size={17} />}
+        </button>
         <button
           className={`${styles.btn} ${styles.hideMobile} ${showTactical ? styles.btnActive : ''}`}
           onClick={toggleTactical}

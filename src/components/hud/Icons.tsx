@@ -94,6 +94,34 @@ export const IconFly = (p: P) => (
   </S>
 );
 
+export const IconSoundOn = (p: P) => (
+  <S {...p}>
+    <path d="M4 9.5v5h3.4L12 18.5v-13L7.4 9.5z" fill="currentColor" stroke="none" />
+    <path d="M15.5 9a4.4 4.4 0 0 1 0 6M18 6.6a8 8 0 0 1 0 10.8" />
+  </S>
+);
+
+export const IconSoundOff = (p: P) => (
+  <S {...p}>
+    <path d="M4 9.5v5h3.4L12 18.5v-13L7.4 9.5z" fill="currentColor" stroke="none" />
+    <path d="M15.5 9.5l5 5M20.5 9.5l-5 5" />
+  </S>
+);
+
+export const IconAsk = (p: P) => (
+  <S {...p}>
+    <path d="M12 3.5l1.9 4.6 4.6 1.9-4.6 1.9L12 16.5l-1.9-4.6-4.6-1.9 4.6-1.9z" />
+    <path d="M19 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="currentColor" stroke="none" />
+  </S>
+);
+
+export const IconPov = (p: P) => (
+  <S {...p}>
+    <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z" />
+    <circle cx="12" cy="12" r="2.6" />
+  </S>
+);
+
 export const IconFollow = (p: P) => (
   <S {...p}>
     <circle cx="12" cy="12" r="7" />

@@ -22,7 +22,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { KitSpec, MatchEvent, Sample, Track } from '@/ir/types';
 import { sampleTrack } from '@/ir/sampler';
-import { playhead } from '@/state/clock';
+import { playhead, povTarget } from '@/state/clock';
 
 const STRIDE = 1.55; // metres per gait half-cycle
 const TAU = Math.PI * 2;
@@ -221,6 +221,8 @@ export default function Player({
   useFrame(() => {
     const g = root.current;
     if (!g) return;
+    // the POV camera hides the body it's looking through
+    g.visible = povTarget.id !== id;
     const t = playhead.t;
     let dtm = t - prevT.current;
     prevT.current = t;

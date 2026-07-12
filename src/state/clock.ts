@@ -10,7 +10,7 @@
 
 import { create } from 'zustand';
 
-export type CameraMode = 'orbit' | 'fly' | 'broadcast' | 'player' | 'cinematic';
+export type CameraMode = 'orbit' | 'fly' | 'broadcast' | 'player' | 'cinematic' | 'pov';
 
 /** Mutable, non-reactive playhead. Scene + driver read/write this directly. */
 export const playhead = {
@@ -18,6 +18,14 @@ export const playhead = {
   /** set by <ClockDriver/> so UI seeks can force a render in demand mode */
   invalidate: null as null | (() => void),
 };
+
+/**
+ * Whose eyes the POV camera is looking through right now. Written by the
+ * camera rig each frame (the target can change as possession moves), read by
+ * each athlete inside useFrame to hide its own body — same imperative channel
+ * pattern as `playhead`, so a possession change never re-renders React.
+ */
+export const povTarget = { id: null as string | null };
 
 interface ClockState {
   playing: boolean;
@@ -31,11 +39,17 @@ interface ClockState {
   cameraMode: CameraMode;
   followId: string | null;
   selectedId: string | null;
+  /** director mode is re-running a goal in slow motion (drives the REPLAY badge) */
+  replayActive: boolean;
   videoOpen: boolean;
   showTactical: boolean;
   statsOpen: boolean;
   shortcutsOpen: boolean;
   rosterOpen: boolean;
+  /** ⌘K "Ask the match" command bar */
+  askOpen: boolean;
+  /** master audio switch — crowd, whistles and commentary */
+  soundOn: boolean;
 
   // actions
   setDuration: (d: number) => void;
@@ -49,12 +63,15 @@ interface ClockState {
   setUiT: (t: number) => void;
   setCameraMode: (m: CameraMode) => void;
   setFollow: (id: string | null) => void;
+  setReplayActive: (v: boolean) => void;
   select: (id: string | null) => void;
   setVideoOpen: (v: boolean) => void;
   toggleTactical: () => void;
   setStatsOpen: (v: boolean) => void;
   setShortcutsOpen: (v: boolean) => void;
   setRosterOpen: (v: boolean) => void;
+  setAskOpen: (v: boolean) => void;
+  toggleSound: () => void;
 }
 
 export const useClock = create<ClockState>((set, get) => ({
@@ -67,11 +84,14 @@ export const useClock = create<ClockState>((set, get) => ({
   cameraMode: 'broadcast',
   followId: null,
   selectedId: null,
+  replayActive: false,
   videoOpen: false,
   showTactical: true,
   statsOpen: false,
   shortcutsOpen: false,
   rosterOpen: false,
+  askOpen: false,
+  soundOn: true,
 
   setDuration: (d) => set({ duration: d }),
   setDeadSpans: (s) => set({ deadSpans: s }),
@@ -95,12 +115,15 @@ export const useClock = create<ClockState>((set, get) => ({
       cameraMode: id ? 'player' : s.cameraMode === 'player' ? 'broadcast' : s.cameraMode,
     })),
   select: (id) => set({ selectedId: id }),
+  setReplayActive: (v) => set({ replayActive: v }),
   // The right edge hosts one panel at a time: video ⊕ stats.
   setVideoOpen: (v) => set(v ? { videoOpen: true, statsOpen: false } : { videoOpen: false }),
   toggleTactical: () => set((s) => ({ showTactical: !s.showTactical })),
   setStatsOpen: (v) => set(v ? { statsOpen: true, videoOpen: false } : { statsOpen: false }),
   setShortcutsOpen: (v) => set({ shortcutsOpen: v }),
   setRosterOpen: (v) => set({ rosterOpen: v }),
+  setAskOpen: (v) => set({ askOpen: v }),
+  toggleSound: () => set((s) => ({ soundOn: !s.soundOn })),
 }));
 
 // Debug/automation hook: lets a headless harness drive the clock deterministically.

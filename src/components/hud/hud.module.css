@@ -97,6 +97,151 @@
   background: var(--accent-team);
 }
 
+/* ============================ ask the match (⌘K) ========================== */
+.askBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14vh;
+  background: rgba(4, 4, 5, 0.45);
+  backdrop-filter: blur(3px);
+  animation: fadeUp 0.16s var(--ease-out) backwards;
+}
+.ask {
+  width: min(620px, calc(100vw - 40px));
+  border: 1px solid var(--line-bright);
+  border-radius: var(--r-md, 12px);
+  background: rgba(9, 9, 11, 0.92);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+.askForm {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+}
+.askPrompt {
+  color: var(--accent-team);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+}
+.askInput {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--chalk);
+  font-size: 15px;
+  font-family: inherit;
+}
+.askInput::placeholder {
+  color: var(--chalk-faint);
+}
+.askKbd {
+  font-size: 10px;
+  color: var(--chalk-faint);
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.1));
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: inherit;
+}
+.askPreview {
+  padding: 10px 16px;
+  font-size: 12.5px;
+  color: var(--chalk-2);
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+}
+.askChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 16px 14px;
+}
+.askChip {
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--chalk-2);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.09));
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.askChip:hover {
+  color: var(--chalk);
+  border-color: var(--line-bright);
+}
+.askToast {
+  position: absolute;
+  left: 50%;
+  bottom: 148px;
+  transform: translateX(-50%);
+  z-index: var(--z-banner);
+  font-size: 12.5px;
+  color: var(--chalk);
+  border: 1px solid var(--line-bright);
+  border-radius: var(--r-sm);
+  padding: 9px 16px;
+  background: rgba(6, 6, 7, 0.72);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+  animation: fadeUp 0.22s var(--ease-out) backwards;
+  max-width: min(560px, 80vw);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================ director replay ============================= */
+.replayBadge {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-banner);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--chalk);
+  border: 1px solid var(--line-bright);
+  border-radius: var(--r-sm);
+  padding: 7px 14px;
+  background: rgba(6, 6, 7, 0.62);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+  animation: fadeUp 0.25s var(--ease-out) backwards;
+}
+.replayDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--live);
+  animation: replayPulse 1.1s ease-in-out infinite;
+}
+.replaySpeed {
+  color: var(--chalk-dim);
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+@keyframes replayPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
 /* =============================== scoreboard =============================== */
 .scoreboard {
   position: absolute;
