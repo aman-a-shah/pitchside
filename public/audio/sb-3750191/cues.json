@@ -1,0 +1,60 @@
+{
+ "cues": [
+  {
+   "t": 0.8,
+   "f": "001.m4a",
+   "d": 8.7,
+   "p": 2,
+   "text": "The Azteca Stadium, Mexico City. A hundred and fourteen thousand inside. Argentina against England, for a place in the World Cup semi final."
+  },
+  {
+   "t": 510.2,
+   "f": "002.m4a",
+   "d": 1.9,
+   "p": 1,
+   "text": "Fenwick goes into the referee's book."
+  },
+  {
+   "t": 2736.8,
+   "f": "003.m4a",
+   "d": 3.3,
+   "p": 2,
+   "text": "And that's half time. Argentina 2, England 1."
+  },
+  {
+   "t": 3067,
+   "f": "004.m4a",
+   "d": 13,
+   "p": 3,
+   "text": "The ball loops up into the England box... Maradona and Shilton both go for it — and it's in! It's in off Maradona! Every white shirt is appealing for handball — the referee says no! The goal stands. You will hear about that one for years. Argentina one, England nil."
+  },
+  {
+   "t": 3297.3,
+   "f": "005.m4a",
+   "d": 17,
+   "p": 3,
+   "text": "Maradona picks it up inside his own half... he turns, he's away from two men — he's off on a run here! Past Butcher, past Fenwick, England cannot get near him — he's in on Shilton, goes round him — and scores! Oh, you have to say that is magnificent! Argentina two, England nil — and there is no argument about that one!"
+  },
+  {
+   "t": 3616,
+   "f": "006.m4a",
+   "d": 2.6,
+   "p": 1,
+   "text": "Sergio Batista goes into the referee's book."
+  },
+  {
+   "t": 4876.5,
+   "f": "007.m4a",
+   "d": 5.5,
+   "p": 3,
+   "text": "Barnes gets to the byline and hangs it up... Lineker! Gary Lineker! England have one back, with ten minutes to play!"
+  },
+  {
+   "t": 5501.9,
+   "f": "008.m4a",
+   "d": 7.8,
+   "p": 3,
+   "text": "There's the final whistle. Argentina are through to the semi finals, after a match that will be argued about forever. The Hand of God, and the Goal of the Century — four minutes apart."
+  }
+ ]
+}

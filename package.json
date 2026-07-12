@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "fetch:data": "node scripts/fetch-statsbomb.mjs",
+    "bake:commentary": "node scripts/generate-commentary.mjs",
     "unity:sample": "tsx scripts/export-unity-sample.ts",
     "build:unity": "bash scripts/build-unity.sh",
     "build": "next build",

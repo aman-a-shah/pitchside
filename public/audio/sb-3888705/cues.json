@@ -1,0 +1,74 @@
+{
+ "cues": [
+  {
+   "t": 0.8,
+   "f": "001.m4a",
+   "d": 12.9,
+   "p": 2,
+   "text": "Good afternoon from the Råsunda Stadium in Stockholm, where Sweden, the hosts, meet Brazil in the final of the World Cup. And there is much talk of Brazil's seventeen year old inside forward... a boy they call Pelé."
+  },
+  {
+   "t": 252.1,
+   "f": "002.m4a",
+   "d": 6,
+   "p": 3,
+   "text": "Liedholm strides through the middle and places it home! Sweden, the hosts, have the lead inside four minutes!"
+  },
+  {
+   "t": 508.8,
+   "f": "003.m4a",
+   "d": 5.7,
+   "p": 3,
+   "text": "Garrincha tears down the right, to the byline... squares it — and Vavá turns it in! Brazil are level!"
+  },
+  {
+   "t": 1885.9,
+   "f": "004.m4a",
+   "d": 4.9,
+   "p": 3,
+   "text": "Vavá! Vavá again, from a Garrincha cross once more! Brazil have turned it around!"
+  },
+  {
+   "t": 2697.4,
+   "f": "005.m4a",
+   "d": 3.5,
+   "p": 2,
+   "text": "And that's half time. Brazil 5, Sweden 2."
+  },
+  {
+   "t": 3274.7,
+   "f": "006.m4a",
+   "d": 10.8,
+   "p": 3,
+   "text": "Oh my word. The boy Pelé! He has flicked the ball clean over the defender's head, run around him, and volleyed it home! Seventeen years of age! That is one of the finest goals a final has ever seen!"
+  },
+  {
+   "t": 4025.1,
+   "f": "007.m4a",
+   "d": 5.8,
+   "p": 3,
+   "text": "Zagallo forces it over the line! Four one to Brazil, and the World Cup is surely bound for South America!"
+  },
+  {
+   "t": 4758.4,
+   "f": "008.m4a",
+   "d": 3.4,
+   "p": 3,
+   "text": "Simonsson pulls one back for the Swedes, but time is short."
+  },
+  {
+   "t": 5437.3,
+   "f": "009.m4a",
+   "d": 8.9,
+   "p": 3,
+   "text": "And there it is! Pelé, with a header, his second of the final! Five two! The boy is in tears before the whistle has even gone — Brazil are champions of the world!"
+  },
+  {
+   "t": 5460.9,
+   "f": "010.m4a",
+   "d": 9.2,
+   "p": 3,
+   "text": "The final whistle sounds in Stockholm! Brazil five, Sweden two. Brazil are champions of the world for the first time — and the whole world now knows the name... Pelé."
+  }
+ ]
+}

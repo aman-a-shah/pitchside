@@ -1,0 +1,81 @@
+{
+ "cues": [
+  {
+   "t": 0.8,
+   "f": "001.m4a",
+   "d": 10.1,
+   "p": 2,
+   "text": "Munich, the Olympic Stadium. West Germany, the hosts, against Holland — Cruyff, Neeskens, and the total football that has enchanted this tournament."
+  },
+  {
+   "t": 88.1,
+   "f": "002.m4a",
+   "d": 7.9,
+   "p": 3,
+   "text": "A penalty to Holland inside the first minute — Cruyff brought down before a German had even touched the ball! Neeskens thumps it home! What a start!"
+  },
+  {
+   "t": 208.7,
+   "f": "003.m4a",
+   "d": 2.1,
+   "p": 1,
+   "text": "Vogts goes into the referee's book."
+  },
+  {
+   "t": 1369.5,
+   "f": "004.m4a",
+   "d": 2.1,
+   "p": 1,
+   "text": "Hanegem goes into the referee's book."
+  },
+  {
+   "t": 1533.9,
+   "f": "005.m4a",
+   "d": 5.1,
+   "p": 3,
+   "text": "Now a penalty to the Germans... Breitner sends the keeper the wrong way. All square in the final."
+  },
+  {
+   "t": 2337,
+   "f": "006.m4a",
+   "d": 2.2,
+   "p": 1,
+   "text": "Neeskens goes into the referee's book."
+  },
+  {
+   "t": 2566.6,
+   "f": "007.m4a",
+   "d": 7.5,
+   "p": 3,
+   "text": "Bonhof to the byline, pulled back — Müller! He swivels, and scores! Gerd Müller, as ever, in the one yard that matters!"
+  },
+  {
+   "t": 2670.1,
+   "f": "008.m4a",
+   "d": 2.4,
+   "p": 1,
+   "text": "Johan Cruyff goes into the referee's book."
+  },
+  {
+   "t": 2729.5,
+   "f": "009.m4a",
+   "d": 3.5,
+   "p": 2,
+   "text": "And that's half time. Netherlands 1, Germany 2."
+  },
+  {
+   "t": 4639,
+   "f": "010.m4a",
+   "d": 4.3,
+   "p": 1,
+   "text": "A big chance for Rep... it won't count. Netherlands so close."
+  },
+  {
+   "t": 5456.8,
+   "f": "011.m4a",
+   "d": 6.8,
+   "p": 3,
+   "text": "West Germany are champions of the world. Holland — perhaps the finest team of their age — beaten in the final they were born to win."
+  }
+ ]
+}

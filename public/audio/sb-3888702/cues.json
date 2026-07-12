@@ -1,0 +1,81 @@
+{
+ "cues": [
+  {
+   "t": 0.8,
+   "f": "001.m4a",
+   "d": 11.3,
+   "p": 2,
+   "text": "High noon at the Estadio Azteca. Brazil, in those famous golden shirts, against Italy. The two great football nations of the age, playing for the Jules Rimet trophy itself."
+  },
+  {
+   "t": 1079.7,
+   "f": "002.m4a",
+   "d": 6.7,
+   "p": 3,
+   "text": "Rivellino hangs it to the far post — Pelé! Pelé climbs above Burgnich and thumps the header home! Brazil lead in the final!"
+  },
+  {
+   "t": 1599.6,
+   "f": "003.m4a",
+   "d": 2.1,
+   "p": 1,
+   "text": "Burgnich goes into the referee's book."
+  },
+  {
+   "t": 2219.3,
+   "f": "004.m4a",
+   "d": 6.3,
+   "p": 3,
+   "text": "A dreadful mix-up at the back for Brazil — and Boninsegna pounces! Italy are level, quite against the run of play!"
+  },
+  {
+   "t": 2626.7,
+   "f": "005.m4a",
+   "d": 2.2,
+   "p": 1,
+   "text": "Rivelino goes into the referee's book."
+  },
+  {
+   "t": 2689.4,
+   "f": "006.m4a",
+   "d": 3.3,
+   "p": 2,
+   "text": "And that's half time. Brazil 4, Italy 1."
+  },
+  {
+   "t": 2802.7,
+   "f": "007.m4a",
+   "d": 4.3,
+   "p": 1,
+   "text": "A big chance for Pelé... it won't count. Brazil so close."
+  },
+  {
+   "t": 3928.7,
+   "f": "008.m4a",
+   "d": 5.5,
+   "p": 3,
+   "text": "Gérson... makes room, and lets fly with that famous left foot — it is there! Brazil lead again!"
+  },
+  {
+   "t": 4216.7,
+   "f": "009.m4a",
+   "d": 7,
+   "p": 3,
+   "text": "Gérson lofts it forward, Pelé nods it down — Jairzinho bundles it in! He has now scored in every single round of this World Cup!"
+  },
+  {
+   "t": 5179.9,
+   "f": "010.m4a",
+   "d": 17.3,
+   "p": 3,
+   "text": "Now watch this... Clodoaldo beats one, two, three, four men in his own half... down the wing through Jairzinho, inside to Pelé... Pelé rolls it to his right without so much as a glance — CARLOS ALBERTO! Like a thunderbolt! That, ladies and gentlemen, is the greatest team goal ever scored!"
+  },
+  {
+   "t": 5491.5,
+   "f": "011.m4a",
+   "d": 6.4,
+   "p": 3,
+   "text": "It is all over! Brazil four, Italy one. The Jules Rimet trophy belongs to Brazil — theirs to keep, forever."
+  }
+ ]
+}

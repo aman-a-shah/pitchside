@@ -1,0 +1,158 @@
+{
+ "cues": [
+  {
+   "t": 0.8,
+   "f": "001.m4a",
+   "d": 10.3,
+   "p": 2,
+   "text": "Istanbul. The final of the Champions League. AC Milan, the aristocrats of European football, against Liverpool. Nobody here has any idea what they are about to witness."
+  },
+  {
+   "t": 51.2,
+   "f": "002.m4a",
+   "d": 4.2,
+   "p": 3,
+   "text": "Fifty two seconds! Paolo Maldini! Milan lead inside the first minute of the final!"
+  },
+  {
+   "t": 2292.7,
+   "f": "003.m4a",
+   "d": 4,
+   "p": 3,
+   "text": "Kaká slides it through — Crespo! Two nil Milan, and Liverpool are drowning."
+  },
+  {
+   "t": 2577.3,
+   "f": "004.m4a",
+   "d": 6.5,
+   "p": 3,
+   "text": "Kaká again, a ball of outrageous vision — Crespo clips it over the keeper! Three nil at half time. Surely, surely this final is over."
+  },
+  {
+   "t": 2771.2,
+   "f": "005.m4a",
+   "d": 3.7,
+   "p": 2,
+   "text": "And that's half time. AC Milan 3, Liverpool 3."
+  },
+  {
+   "t": 3257.8,
+   "f": "006.m4a",
+   "d": 5.1,
+   "p": 3,
+   "text": "Riise crosses — GERRARD! Steven Gerrard! A lifeline for Liverpool, and listen to that noise!"
+  },
+  {
+   "t": 3376.5,
+   "f": "007.m4a",
+   "d": 6,
+   "p": 3,
+   "text": "Šmicer... from twenty five yards — IT'S IN! Two goals in two minutes! Liverpool believe, and Milan are shaking!"
+  },
+  {
+   "t": 3665.6,
+   "f": "008.m4a",
+   "d": 8,
+   "p": 3,
+   "text": "Gerrard is brought down — penalty! Alonso steps up... saved — ALONSO ON THE REBOUND! From three nil down to three three! The miracle of Istanbul is ON!"
+  },
+  {
+   "t": 4601.6,
+   "f": "009.m4a",
+   "d": 1.9,
+   "p": 1,
+   "text": "Carragher goes into the referee's book."
+  },
+  {
+   "t": 4871.9,
+   "f": "010.m4a",
+   "d": 1.9,
+   "p": 1,
+   "text": "Baroš goes into the referee's book."
+  },
+  {
+   "t": 5356.8,
+   "f": "011.m4a",
+   "d": 4,
+   "p": 1,
+   "text": "A big chance for Kaká... it won't count. AC Milan so close."
+  },
+  {
+   "t": 5592.1,
+   "f": "012.m4a",
+   "d": 3,
+   "p": 2,
+   "text": "Extra time it is. Thirty more minutes to settle it."
+  },
+  {
+   "t": 7280.7,
+   "f": "013.m4a",
+   "d": 4.2,
+   "p": 1,
+   "text": "Shevchenko must score... kept out! What a chance for AC Milan!"
+  },
+  {
+   "t": 7533.8,
+   "f": "014.m4a",
+   "d": 3.5,
+   "p": 2,
+   "text": "So it comes down to this. A penalty shoot-out will decide it."
+  },
+  {
+   "t": 7583.3,
+   "f": "015.m4a",
+   "d": 2.4,
+   "p": 2,
+   "text": "Hamann steps up... and scores. 0 1."
+  },
+  {
+   "t": 7633.5,
+   "f": "016.m4a",
+   "d": 2.5,
+   "p": 2,
+   "text": "Pirlo steps up... SAVED! Kept out!"
+  },
+  {
+   "t": 7690.2,
+   "f": "017.m4a",
+   "d": 2.5,
+   "p": 2,
+   "text": "Cissé steps up... and scores. 0 2."
+  },
+  {
+   "t": 7730.2,
+   "f": "018.m4a",
+   "d": 2.5,
+   "p": 2,
+   "text": "Tomasson steps up... and scores. 1 2."
+  },
+  {
+   "t": 7784.3,
+   "f": "019.m4a",
+   "d": 3,
+   "p": 2,
+   "text": "John Arne Riise steps up... SAVED! Kept out!"
+  },
+  {
+   "t": 7836.1,
+   "f": "020.m4a",
+   "d": 2.3,
+   "p": 2,
+   "text": "Kaká steps up... and scores. 2 2."
+  },
+  {
+   "t": 7876.9,
+   "f": "021.m4a",
+   "d": 2.1,
+   "p": 3,
+   "text": "Smicer steps up... and scores. 2 3."
+  },
+  {
+   "t": 7926.2,
+   "f": "022.m4a",
+   "d": 5.1,
+   "p": 3,
+   "text": "Liverpool have won the Champions League! From three nil down at half time — the miracle of Istanbul is complete!"
+  }
+ ]
+}
