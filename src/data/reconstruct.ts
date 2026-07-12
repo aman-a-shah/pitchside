@@ -451,14 +451,54 @@ export function reconstructSoccerMatch(
           pushWp(r.wps, t + dur, end.x, end.z);
         }
         if (e.player) {
+          const who = displayName(e.player);
+          const recip = pass.recipient ? displayName(pass.recipient) : null;
+          const kind = pass.type?.name;
+          const outName = pass.outcome?.name;
+          const bodyPart = pass.body_part?.name;
+          const headed = bodyPart === 'Head';
+          const live =
+            kind === 'Throw-in'
+              ? `Throw-in — ${who}`
+              : kind === 'Corner'
+                ? `Corner — ${who} delivers`
+                : kind === 'Free Kick'
+                  ? `${who} takes the free kick`
+                  : kind === 'Goal Kick'
+                    ? `Goal kick — ${who}`
+                    : kind === 'Kick Off'
+                      ? `${who} gets it moving`
+                      : outName === 'Out'
+                        ? `${who} puts it out of play`
+                        : outName === 'Pass Offside'
+                          ? `${who} plays it through — flag up`
+                          : !outName && recip
+                            ? headed
+                              ? `${who} heads it to ${recip}`
+                              : hName === 'High Pass' && (pass.length ?? 0) > 30
+                                ? `${who} goes long to ${recip}`
+                                : `${who} passes to ${recip}`
+                            : outName === 'Incomplete'
+                              ? recip
+                                ? `${who}'s ball to ${recip} is cut out`
+                                : `${who}'s pass doesn't come off`
+                              : `${who} gives it away`;
           irEvents.push({
             t,
             type: 'pass',
             actor: `p${e.player.id}`,
             team: letter,
             location: [toWorld(e.location!, letter, e.period).x, toWorld(e.location!, letter, e.period).z],
-            animIntent: 'pass',
+            // real body part → the right one-shot: two-handed throw for
+            // throw-ins (and keeper bowls), a headed flick for headers
+            animIntent:
+              kind === 'Throw-in' || bodyPart === 'Keeper Arm'
+                ? 'throw'
+                : headed
+                  ? 'header'
+                  : 'pass',
             importance: 0.12,
+            live,
           });
         }
         break;
@@ -472,6 +512,25 @@ export function reconstructSoccerMatch(
           const p = ensurePlayer(e.player, letter);
           pushWp(p.wps, t + dur, end.x, end.z);
           openPoss(p.eid, t);
+          // ticker line for a genuine run with the ball (short touches between
+          // passes would just churn the text) — SB coords, so +x is always
+          // "toward the goal they attack"
+          const distSB = Math.hypot(
+            e.carry!.end_location[0] - e.location![0],
+            e.carry!.end_location[1] - e.location![1]
+          );
+          if (distSB >= 4) {
+            const who = displayName(e.player);
+            const fwdGain = e.carry!.end_location[0] - e.location![0];
+            irEvents.push({
+              t,
+              type: 'carry',
+              actor: p.eid,
+              team: letter,
+              importance: 0.05,
+              live: fwdGain > 9 ? `${who} drives forward with the ball` : `${who} on the ball`,
+            });
+          }
         }
         break;
       }
@@ -488,6 +547,18 @@ export function reconstructSoccerMatch(
         pushBall(t + dur, end.x, end.z, endH, Math.max(endH, 0.2), true);
         closePoss(t);
         flights.push([t, t + dur]);
+
+        // goals: physics don't stop at the goal line — the net catches the
+        // ball, absorbs it, and it drops with a soft bounce and settles.
+        // (Without this the track froze the ball mid-net until the respot.)
+        if (shot.outcome.name === 'Goal') {
+          const tg = t + dur;
+          const ux = (end.x - start.x) / (distM || 1);
+          const uz = (end.z - start.z) / (distM || 1);
+          pushBall(tg + 0.16, end.x + ux * 1.0, end.z + uz * 1.0, Math.max(BALL_R, endH * 0.35), 0, true);
+          pushBall(tg + 0.55, end.x + ux * 0.72, end.z + uz * 0.72, BALL_R, 0.3, true);
+          pushBall(tg + 1.35, end.x + ux * 0.85, end.z + uz * 0.85, BALL_R, 0, true);
+        }
 
         const who = e.player ? displayName(e.player) : 'Shot';
         const actor = e.player ? `p${e.player.id}` : undefined;
@@ -524,6 +595,7 @@ export function reconstructSoccerMatch(
           break;
         }
 
+        const headed = shot.body_part?.name === 'Head';
         irEvents.push({
           t,
           type: 'shot',
@@ -531,18 +603,22 @@ export function reconstructSoccerMatch(
           team: letter,
           location: [start.x, start.z],
           target: [end.x, end.z],
-          animIntent: 'shot_finish',
+          animIntent: headed ? 'header' : 'shot_finish',
           importance: clamp(0.45 + xg * 0.5, 0.45, 0.9),
           text:
             outcome === 'Goal'
-              ? `${who} shoots…`
+              ? headed
+                ? `${who} rises to head it…`
+                : `${who} shoots…`
               : outcome === 'Saved' || outcome === 'Saved to Post' || outcome === 'Saved Off Target'
-                ? `${who}'s shot is saved.`
+                ? `${who}'s ${headed ? 'header' : 'shot'} is saved.`
                 : outcome === 'Post'
                   ? `${who} hits the woodwork!`
                   : outcome === 'Blocked'
-                    ? `${who}'s shot is blocked.`
-                    : `${who} shoots — off target.`,
+                    ? `${who}'s ${headed ? 'header' : 'shot'} is blocked.`
+                    : headed
+                      ? `${who} heads it off target.`
+                      : `${who} shoots — off target.`,
         });
 
         if (outcome === 'Goal') {
@@ -577,16 +653,57 @@ export function reconstructSoccerMatch(
       }
 
       case 'Dribble': {
-        if (e.player) openPoss(`p${e.player.id}`, t);
+        if (e.player) {
+          openPoss(`p${e.player.id}`, t);
+          irEvents.push({
+            t,
+            type: 'carry',
+            actor: `p${e.player.id}`,
+            team: letter,
+            importance: 0.15,
+            live: `${displayName(e.player)} takes the defender on`,
+          });
+        }
         break;
       }
 
-      case 'Miscontrol':
-      case 'Clearance':
+      case 'Miscontrol': {
+        closePoss(t);
+        if (e.player)
+          irEvents.push({
+            t,
+            type: 'turnover',
+            actor: `p${e.player.id}`,
+            team: letter,
+            importance: 0.08,
+            live: `${displayName(e.player)} miscontrols it`,
+          });
+        break;
+      }
+
+      case 'Clearance': {
+        closePoss(t);
+        if (e.player)
+          irEvents.push({
+            t,
+            type: 'clearance',
+            actor: `p${e.player.id}`,
+            team: letter,
+            importance: 0.1,
+            live: `${displayName(e.player)} clears it`,
+          });
+        break;
+      }
+
+      case 'Out': {
+        closePoss(t);
+        irEvents.push({ t, type: 'out', importance: 0.06, live: 'The ball runs out of play' });
+        break;
+      }
+
       case '50/50':
       case 'Foul Won':
-      case 'Shield':
-      case 'Out': {
+      case 'Shield': {
         closePoss(t);
         break;
       }
@@ -636,6 +753,7 @@ export function reconstructSoccerMatch(
             actor: `p${e.player.id}`,
             team: letter,
             importance: 0.2,
+            live: `${displayName(e.player)} wins the ball back`,
           });
         }
         break;
@@ -644,7 +762,14 @@ export function reconstructSoccerMatch(
       case 'Dispossessed': {
         closePoss(t);
         if (e.player)
-          irEvents.push({ t, type: 'turnover', actor: `p${e.player.id}`, team: letter, importance: 0.18 });
+          irEvents.push({
+            t,
+            type: 'turnover',
+            actor: `p${e.player.id}`,
+            team: letter,
+            importance: 0.18,
+            live: `${displayName(e.player)} is dispossessed`,
+          });
         break;
       }
 
@@ -674,6 +799,7 @@ export function reconstructSoccerMatch(
             actor: e.player && `p${e.player.id}`,
             team: letter,
             importance: 0.2,
+            live: e.player ? `Foul by ${displayName(e.player)}` : 'Free kick given',
           });
         }
         break;
@@ -705,7 +831,14 @@ export function reconstructSoccerMatch(
 
       case 'Player On': {
         const p = e.player && players.get(e.player.id);
-        if (p) p.windows.push([t, duration]);
+        if (p) {
+          // a brief treatment/equipment pause: the player never really left,
+          // so reopen the window rather than teleporting them to the bench
+          // and back for a few seconds
+          const last = p.windows[p.windows.length - 1];
+          if (last && t - last[1] < 90) last[1] = duration;
+          else p.windows.push([t, duration]);
+        }
         break;
       }
 

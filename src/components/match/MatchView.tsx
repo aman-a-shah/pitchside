@@ -10,6 +10,7 @@ import Scoreboard from '@/components/hud/Scoreboard';
 import Timeline from '@/components/hud/Timeline';
 import ControlBar from '@/components/hud/ControlBar';
 import EventFeed from '@/components/hud/EventFeed';
+import ActionTicker from '@/components/hud/ActionTicker';
 import Minimap from '@/components/hud/Minimap';
 import VideoPanel from '@/components/hud/VideoPanel';
 import StatsPanel from '@/components/hud/StatsPanel';
@@ -140,6 +141,7 @@ export default function MatchView({ id }: { id: string }) {
               <Scoreboard />
               <Minimap />
               <EventFeed />
+              <ActionTicker />
               <VideoPanel />
               <StatsPanel />
               <CelebrationBanner />

@@ -86,6 +86,7 @@ export interface SBEvent {
     end_location: [number, number];
     outcome?: SBRef;
     type?: SBRef;
+    body_part?: SBRef;
   };
   carry?: { end_location: [number, number] };
   ball_receipt?: { outcome?: SBRef };
@@ -94,6 +95,7 @@ export interface SBEvent {
     end_location: [number, number] | [number, number, number];
     outcome: SBRef;
     type?: SBRef;
+    body_part?: SBRef;
     freeze_frame?: SBFreezeFrame[];
   };
   goalkeeper?: {

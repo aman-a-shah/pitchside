@@ -175,7 +175,8 @@
 /* ---------------- help hint ---------------- */
 .help {
   position: absolute;
-  bottom: 152px;
+  /* clear of the action ticker (bottom: 132px in hud.module.css) */
+  bottom: 178px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 22;

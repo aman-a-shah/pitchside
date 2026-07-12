@@ -184,7 +184,8 @@
 .askToast {
   position: absolute;
   left: 50%;
-  bottom: 148px;
+  /* clear of the action ticker (bottom: 132px) */
+  bottom: 178px;
   transform: translateX(-50%);
   z-index: var(--z-banner);
   font-size: 12.5px;
@@ -240,6 +241,52 @@
 @keyframes replayPulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
+}
+
+/* ============================= action ticker ============================== */
+.ticker {
+  position: absolute;
+  left: 50%;
+  bottom: 132px;
+  transform: translateX(-50%);
+  z-index: var(--z-hud);
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 13px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--chalk-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(6, 6, 7, 0.55);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+  max-width: min(480px, 72vw);
+  white-space: nowrap;
+}
+.tickerDot {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent-team);
+  animation: pulse 2s ease-in-out infinite;
+}
+.tickerText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: tickerIn 0.18s var(--ease-out) backwards;
+}
+@keyframes tickerIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* =============================== scoreboard =============================== */
@@ -1423,6 +1470,10 @@
     bottom: 222px;
     width: min(320px, calc(100vw - 24px));
     max-width: none;
+  }
+  .ticker {
+    bottom: 190px;
+    max-width: calc(100vw - 24px);
   }
   .feedLatest .feedItem:not(:first-child) {
     display: none;
