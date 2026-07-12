@@ -113,6 +113,10 @@ interface BallWp extends Wp {
   h: number;
   /** arc peak (m) of the flight ARRIVING at this waypoint; 0 = along the ground */
   arc: number;
+  /** entity responsible for the ball AT this waypoint (actor / pass recipient) */
+  actor?: string;
+  /** the actor fetches the ball and carries it here (see escort pass) */
+  escort?: boolean;
 }
 
 function pushWp(list: Wp[], t: number, x: number, z: number) {
@@ -267,7 +271,15 @@ export function reconstructSoccerMatch(
   const pens = { H: 0, A: 0 };
   let sawPens = false;
 
-  function pushBall(t: number, x: number, z: number, h = BALL_R, arc = 0, force = false) {
+  function pushBall(
+    t: number,
+    x: number,
+    z: number,
+    h = BALL_R,
+    arc = 0,
+    force = false,
+    actor?: string
+  ) {
     const last = ballWps[ballWps.length - 1];
     if (t <= last.t + 0.02) {
       if (!force) return; // ambiguous same-instant locations: first one wins
@@ -275,6 +287,7 @@ export function reconstructSoccerMatch(
       last.z = z;
       last.h = Math.max(last.h, h);
       last.arc = Math.max(last.arc, arc);
+      last.actor ??= actor;
       return;
     }
     // data-noise guard: a non-authoritative waypoint implying an impossibly
@@ -290,7 +303,7 @@ export function reconstructSoccerMatch(
       if (!force && d < 14) return;
       if (force) t = last.t + d / 38;
     }
-    ballWps.push({ t, x, z, h, arc });
+    ballWps.push({ t, x, z, h, arc, actor });
   }
 
   function addGoal(t: number, letter: 'H' | 'A', text: string, loc?: [number, number], actor?: string) {
@@ -388,7 +401,7 @@ export function reconstructSoccerMatch(
       const settle = Math.min(2.2, gap - Math.max(0.8, d / 16) - 0.3);
       if (settle > 0.6) {
         closePoss(t - settle); // the ball is placed on the spot — nobody carries it
-        pushBall(t - settle, w.x, w.z, BALL_R, 0, true);
+        pushBall(t - settle, w.x, w.z, BALL_R, 0, true, e.player ? `p${e.player.id}` : undefined);
         if (e.player) {
           const p = ensurePlayer(e.player, letter, e.position?.id);
           const standT = t - Math.min(1.5, settle);
@@ -408,7 +421,7 @@ export function reconstructSoccerMatch(
     // ball waypoint
     if (e.location && BALL_EVENTS.has(typeName)) {
       const w = toWorld(e.location, letter, e.period);
-      pushBall(t, w.x, w.z);
+      pushBall(t, w.x, w.z, BALL_R, 0, false, e.player ? `p${e.player.id}` : undefined);
     }
 
     switch (typeName) {
@@ -419,7 +432,15 @@ export function reconstructSoccerMatch(
         const hName = pass.height?.name ?? 'Ground Pass';
         const len = (pass.length ?? 15) * SX;
         const arc = hName === 'High Pass' ? clamp(2 + len * 0.14, 2.2, 9) : hName === 'Low Pass' ? 1.1 : 0;
-        pushBall(t + dur, end.x, end.z, BALL_R, arc, true);
+        pushBall(
+          t + dur,
+          end.x,
+          end.z,
+          BALL_R,
+          arc,
+          true,
+          !pass.outcome && pass.recipient ? `p${pass.recipient.id}` : undefined
+        );
         closePoss(t);
         flights.push([t, t + dur]);
         // a completed pass (no outcome recorded) hands possession to the
@@ -446,7 +467,7 @@ export function reconstructSoccerMatch(
       case 'Carry': {
         const end = toWorld(e.carry!.end_location, letter, e.period);
         const dur = Math.max(0.1, e.duration ?? 1);
-        pushBall(t + dur, end.x, end.z, BALL_R, 0, true);
+        pushBall(t + dur, end.x, end.z, BALL_R, 0, true, e.player ? `p${e.player.id}` : undefined);
         if (e.player) {
           const p = ensurePlayer(e.player, letter);
           pushWp(p.wps, t + dur, end.x, end.z);
@@ -697,18 +718,6 @@ export function reconstructSoccerMatch(
 
   closePoss(duration);
 
-  // finalize possession spans: time-ordered, non-overlapping, indexed by player
-  possSpans.sort((a, b) => a.t0 - b.t0);
-  for (let i = 0; i < possSpans.length - 1; i++)
-    possSpans[i].t1 = Math.min(possSpans[i].t1, possSpans[i + 1].t0);
-  flights.sort((a, b) => a[0] - b[0]);
-  const spansByEid = new Map<string, PossSpan[]>();
-  for (const sp of possSpans) {
-    let list = spansByEid.get(sp.eid);
-    if (!list) spansByEid.set(sp.eid, (list = []));
-    list.push(sp);
-  }
-
   irEvents.unshift({
     t: 0,
     type: 'kickoff',
@@ -739,6 +748,57 @@ export function reconstructSoccerMatch(
     }
   }
 
+  // ---- escort unattended relocations --------------------------------------------
+  // A dead ball that has to travel to the next action (goal-kick respots,
+  // throw-in returns, gaps the data never recorded) used to roll there ALONE —
+  // on screen it read as the ball being kicked from empty grass. Whoever acts
+  // next now fetches it: they get a waypoint at the ball's old spot when the
+  // travel starts and a possession span for the trip, so the attach pass glues
+  // the ball to their feet the whole way there.
+  const ESCORT_PACE = 6.5; // carrying pace, m/s (a player can actually keep up)
+  const escortTravel = (a: BallWp, b: BallWp) => {
+    const d = Math.hypot(b.x - a.x, b.z - a.z);
+    const pace = b.escort ? ESCORT_PACE : 16;
+    return clamp(d / pace, 0.8, Math.min(b.escort ? 9 : 6, (b.t - a.t) * 0.8));
+  };
+  {
+    const playersByEid = new Map([...players.values()].map((pl) => [pl.eid, pl] as const));
+    for (let i = 1; i < ballWps.length; i++) {
+      const a = ballWps[i - 1];
+      const b = ballWps[i];
+      const gap = b.t - a.t;
+      if (gap <= 3.5) continue;
+      const d = Math.hypot(b.x - a.x, b.z - a.z);
+      if (d < 6 || d > 30 || !b.actor) continue;
+      const p = playersByEid.get(b.actor);
+      if (!p) continue;
+      b.escort = true;
+      const tStart = b.t - escortTravel(a, b);
+      // don't fight the player's real recorded movement in that window
+      if (p.wps.some((w) => w.t > tStart - 1.5 && w.t < b.t - 0.05)) {
+        b.escort = false;
+        continue;
+      }
+      const idx = p.wps.findIndex((w) => w.t > tStart);
+      const wp = { t: tStart, x: a.x, z: a.z };
+      if (idx < 0) p.wps.push(wp);
+      else p.wps.splice(idx, 0, wp);
+      possSpans.push({ t0: tStart, t1: b.t, eid: p.eid });
+    }
+  }
+
+  // finalize possession spans: time-ordered, non-overlapping, indexed by player
+  possSpans.sort((a, b) => a.t0 - b.t0);
+  for (let i = 0; i < possSpans.length - 1; i++)
+    possSpans[i].t1 = Math.min(possSpans[i].t1, possSpans[i + 1].t0);
+  flights.sort((a, b) => a[0] - b[0]);
+  const spansByEid = new Map<string, PossSpan[]>();
+  for (const sp of possSpans) {
+    let list = spansByEid.get(sp.eid);
+    if (!list) spansByEid.set(sp.eid, (list = []));
+    list.push(sp);
+  }
+
   // ---- dead spans ----------------------------------------------------------------
   // Long stretches with no ball movement (free-kick setups, VAR, injuries,
   // celebrations). The playback clock jumps over these while playing. Each span
@@ -754,11 +814,13 @@ export function reconstructSoccerMatch(
       const gap = b.t - a.t;
       if (gap <= SKIP_GAP) continue;
       const d = Math.hypot(b.x - a.x, b.z - a.z);
-      const travel = clamp(d / 16, 0.8, Math.min(6, gap * 0.8)); // mirror dense-track easing
+      const travel = escortTravel(a, b); // mirror dense-track easing
       const nearGoal = goalTimes.some((g) => g >= a.t - 3 && g <= a.t + 1);
       const linger = nearGoal ? 4.5 : 2.5;
       const s0 = a.t + linger;
-      const s1 = b.t - travel - 1;
+      // escorted travel is worth watching (a player brings the ball); an
+      // unescorted far respot is a ghost roll — jump straight past it
+      const s1 = !b.escort && d > 6 ? b.t - 0.25 : b.t - travel - 1;
       if (s1 - s0 > 1.5) deadSpans.push([s0, s1]);
     }
   }
@@ -780,9 +842,9 @@ export function reconstructSoccerMatch(
         const gap = b.t - a.t;
         let f01 = clamp((t - a.t) / gap, 0, 1);
         if (gap > 3.5) {
-          // dead ball: hold, then travel late in the gap at a physical pace
-          const d = Math.hypot(b.x - a.x, b.z - a.z);
-          const travel = clamp(d / 16, 0.8, Math.min(6, gap * 0.8));
+          // dead ball: hold, then travel late in the gap — carried by the
+          // escorting player when one fetches it, eased otherwise
+          const travel = escortTravel(a, b);
           f01 = t < b.t - travel ? 0 : smooth((t - (b.t - travel)) / travel);
         } else if (b.arc === 0) {
           // ground ball: friction — leaves the boot quick, decelerates in

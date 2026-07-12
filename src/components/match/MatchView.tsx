@@ -16,7 +16,6 @@ import StatsPanel from '@/components/hud/StatsPanel';
 import CelebrationBanner from '@/components/hud/CelebrationBanner';
 import DirectorReplay from '@/components/hud/DirectorReplay';
 import AskBar from '@/components/hud/AskBar';
-import AudioDirector from '@/audio/AudioDirector';
 import ShortcutsOverlay from '@/components/hud/ShortcutsOverlay';
 import TopBar from '@/components/hud/TopBar';
 import { useHudKeys } from '@/components/hud/useHudKeys';
@@ -146,7 +145,6 @@ export default function MatchView({ id }: { id: string }) {
               <CelebrationBanner />
               <DirectorReplay />
               <AskBar />
-              <AudioDirector />
               <div className={styles.bottomDock}>
                 <div className={styles.dockPanel}>
                   <Timeline />
