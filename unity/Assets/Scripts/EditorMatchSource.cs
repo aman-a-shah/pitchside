@@ -76,11 +76,6 @@ namespace Pitchside
             if (autoPlay)
             {
                 clock = Mathf.Repeat(clock + Time.deltaTime * speed, duration);
-                // jump over dead stretches, same as the website's clock
-                var spans = bridge.Setup?.deadSpans;
-                if (spans != null)
-                    foreach (var s in spans)
-                        if (clock > s.t0 && clock < s.t1) { clock = s.t1; break; }
             }
             bridge.WriteClock(clock, autoPlay);
 

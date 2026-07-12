@@ -44,7 +44,6 @@ export default function MatchView({ id }: { id: string }) {
   const [loadedBytes, setLoadedBytes] = useState<number>();
   const [error, setError] = useState<string | null>(null);
   const setDuration = useClock((s) => s.setDuration);
-  const setDeadSpans = useClock((s) => s.setDeadSpans);
   const play = useClock((s) => s.play);
   const seek = useClock((s) => s.seek);
   const startedRef = useRef(false);
@@ -79,7 +78,6 @@ export default function MatchView({ id }: { id: string }) {
         if (!alive) return;
         const m = buildModel(ir);
         setDuration(ir.duration);
-        setDeadSpans(ir.deadSpans ?? []);
         seek(0);
         setModel(m);
         setStage(1);
@@ -90,7 +88,7 @@ export default function MatchView({ id }: { id: string }) {
     return () => {
       alive = false;
     };
-  }, [id, setDuration, setDeadSpans, seek]);
+  }, [id, setDuration, seek]);
 
   // Extend the automation hook with the built model so headless QA can find
   // event times (window.__pitchside.model.ir.events).

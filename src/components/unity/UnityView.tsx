@@ -180,13 +180,6 @@ export default function UnityView({
       const st = useClock.getState();
       if (st.playing) {
         let t = playhead.t + delta * st.speed;
-        // jump over dead stretches (nothing happens on the pitch there)
-        for (const [s0, s1] of st.deadSpans) {
-          if (t > s0 && t < s1) {
-            t = s1;
-            break;
-          }
-        }
         if (t >= st.duration) {
           t = st.duration;
           st.pause();

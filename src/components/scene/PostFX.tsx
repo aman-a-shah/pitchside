@@ -7,7 +7,6 @@ import {
   Bloom,
   Vignette,
   SMAA,
-  DepthOfField,
   HueSaturation,
   BrightnessContrast,
   ChromaticAberration,
@@ -19,7 +18,6 @@ import {
 import { BlendFunction } from 'postprocessing';
 import { Mood } from '@/ir/types';
 import { Era } from '@/lib/era';
-import { useClock } from '@/state/clock';
 
 /**
  * Cinematic post stack (order matters).
@@ -29,20 +27,16 @@ import { useClock } from '@/state/clock';
  *  2. Bloom  — mipmap bloom with a HIGH luminance threshold, so only genuine
  *              emissives (floodlights, jumbotron, ball trail) glow — never the
  *              whole lit grass field (which used to flood the frame white).
- *  3. DoF    — engages only in slow-motion for the hero-replay look.
- *  4. Grade  — hue/sat + brightness/contrast tuned per mood, then re-graded per
+ *  3. Grade  — hue/sat + brightness/contrast tuned per mood, then re-graded per
  *              ERA: matches are presented on the film stock of their decade
  *              (silver newsreel, faded 16mm, broadcast tape — see lib/era.ts).
- *  5. Chroma — a whisper of lens fringing at the edges (more on VHS tape).
- *  6. Vignette + film grain — the cinematic frame (much heavier on newsreel).
- *  7. SMAA   — clean edges last.
+ *  4. Chroma — a whisper of lens fringing at the edges (more on VHS tape).
+ *  5. Vignette + film grain — the cinematic frame (much heavier on newsreel).
+ *  6. SMAA   — clean edges last.
  *
  * ACES tone mapping is applied by the renderer (see Scene/ExposureSetter).
  */
 export default function PostFX({ mood, era = 'modern' }: { mood: Mood; era?: Era }) {
-  const speed = useClock((s) => s.speed);
-  const playing = useClock((s) => s.playing);
-  const slowmo = playing && speed <= 0.4;
   const bright = mood === 'day';
   const indoor = mood === 'indoor';
 
@@ -93,11 +87,6 @@ export default function PostFX({ mood, era = 'modern' }: { mood: Mood; era?: Era
         luminanceSmoothing={0.08}
         radius={0.34}
       />
-      {slowmo ? (
-        <DepthOfField focusDistance={0.012} focalLength={0.03} bokehScale={4.5} height={520} />
-      ) : (
-        <></>
-      )}
       <HueSaturation saturation={g.saturation} hue={g.hue} />
       <BrightnessContrast brightness={g.brightness} contrast={g.contrast} />
       {g.sepia > 0 ? <Sepia intensity={g.sepia} /> : <></>}

@@ -145,8 +145,9 @@ function AutoMode() {
   const len = ir.fieldSpec.length;
   const wid = ir.fieldSpec.width;
 
-  // cinematic director state
-  const shotRef = useRef({ name: '', start: 0 });
+  // cinematic director state: current shot + its lens (fov snaps on cuts)
+  const shotRef = useRef({ name: '', start: 0, fov: 40 });
+  const ballAhead = useRef(new THREE.Vector3());
   // player cam state: current body + when we last re-evaluated who has the ball
   const povRef = useRef({ id: null as string | null, checked: -1 });
   // first-person body feel: stride phase, turn-lean roll, sprint fov, kick jolt
@@ -352,6 +353,17 @@ function AutoMode() {
     } else {
       // cinematic director
       directorShot(t, delta);
+      // the lens is part of the cut: a camera switch lands on its focal
+      // length instantly; within a shot the fov only creeps (slow zoom)
+      const persp = camera as THREE.PerspectiveCamera;
+      const targetFov = shotRef.current.fov;
+      const nextFov = initialized.current
+        ? persp.fov + (targetFov - persp.fov) * Math.min(1, delta * 1.5)
+        : targetFov;
+      if (Math.abs(persp.fov - nextFov) > 0.01) {
+        persp.fov = nextFov;
+        persp.updateProjectionMatrix();
+      }
     }
 
     if (!initialized.current) {
@@ -377,17 +389,37 @@ function AutoMode() {
    * to the right place BEFORE the moment — behind the goal as a shot comes
    * in, tight on the scorer as the celebration starts — then falls back to a
    * rotating pattern of standard coverage shots between moments.
+   *
+   * Two rules keep it looking like television:
+   *  - every low camera lives INSIDE the bowl (the runoff between the field
+   *    edge and the first row — same envelope the fly cam obeys); only the
+   *    high gantry rides above the stand tops. No shot ever sits in the crowd.
+   *  - every shot has a lens: long glass (small fov) for the compressed
+   *    coverage looks, wider only up close. Cuts snap the fov, shots creep it.
    */
   function directorShot(t: number, delta: number) {
     const sh = shotRef.current;
     const b = ball.current;
-    const cutTo = (name: string) => {
+    const life = t - sh.start;
+    const cutTo = (name: string, fov: number) => {
       if (sh.name !== name) {
         sh.name = name;
         sh.start = t;
+        sh.fov = fov;
         initialized.current = false; // hard cut, like a vision mixer
       }
     };
+    // the runoff envelope: between the field edge and the first row of seats
+    const pad = (FLY_BOUNDS[ir.sport]?.pad ?? 5) - 0.8;
+    const clampBowl = (v: THREE.Vector3, minY = 1.1) => {
+      v.x = THREE.MathUtils.clamp(v.x, -(len * 0.5 + pad), len * 0.5 + pad);
+      v.z = THREE.MathUtils.clamp(v.z, -(wid * 0.5 + pad), wid * 0.5 + pad);
+      v.y = Math.max(v.y, minY);
+    };
+    // operators frame where the play is GOING — lead the ball slightly
+    samplePos(ir, 'ball', t + 0.6, ballAhead.current);
+    const leadX = (ballAhead.current.x - b.x) * 0.45;
+    const leadZ = (ballAhead.current.z - b.z) * 0.45;
 
     // ---- hero coverage: goals own the camera from 2s before to 5s after ----
     const goal = findKeyEvent(ir, t, 'goal', 2.2, 5.4);
@@ -395,17 +427,23 @@ function AutoMode() {
       if (t >= goal.t + 0.35 && goal.actor && ir.tracks[goal.actor]) {
         // scorer close-up: a slow arc around the celebration
         sampleTrack(ir.tracks[goal.actor], t, s);
-        const ang = (t - goal.t) * 0.3 + (goal.t % 6.28);
-        cutTo(`cele-${goal.t}`);
-        desiredPos.current.set(s.x + Math.sin(ang) * 6.5, 2.1, s.z + Math.cos(ang) * 6.5);
-        lookTarget.current.set(s.x, 1.25, s.z);
+        const ang = (t - goal.t) * 0.28 + (goal.t % 6.28);
+        cutTo(`cele-${goal.t}`, 36);
+        desiredPos.current.set(s.x + Math.sin(ang) * 6, 2.3, s.z + Math.cos(ang) * 6);
+        clampBowl(desiredPos.current, 1.6); // corner celebrations: slide along the runoff, never into it
+        lookTarget.current.set(s.x, 1.3, s.z);
         return;
       }
-      // net-cam: low behind the goal the ball is arriving at
+      // net-cam: low in the runoff behind the goal the ball is arriving at,
+      // just inside the first row of seats
       const gx = (goal.location?.[0] ?? b.x) >= 0 ? 1 : -1;
-      cutTo(`net-${goal.t}`);
-      desiredPos.current.set(gx * (len * 0.5 + 6.5), 2.2, (goal.location?.[1] ?? b.z) * 0.3);
-      lookTarget.current.set(b.x, Math.max(b.y, 0.8), b.z);
+      cutTo(`net-${goal.t}`, 48);
+      desiredPos.current.set(
+        gx * (len * 0.5 + pad * 0.75),
+        1.15,
+        THREE.MathUtils.clamp((goal.location?.[1] ?? b.z) * 0.35, -7, 7)
+      );
+      lookTarget.current.set(b.x, Math.max(b.y, 0.9), b.z);
       return;
     }
 
@@ -414,19 +452,20 @@ function AutoMode() {
     if (chance) {
       const ex = chance.location ? chance.location[0] : b.x;
       const ez = chance.location ? chance.location[1] : b.z;
-      cutTo(`chance-${chance.t}`);
-      desiredPos.current.set(ex * 0.72, 2.8, ez + (ez >= 0 ? 9 : -9));
-      lookTarget.current.set(b.x, 1.2, b.z);
+      cutTo(`chance-${chance.t}`, 38);
+      desiredPos.current.set(ex * 0.72, 2.4, ez + (ez >= 0 ? 9 : -9));
+      clampBowl(desiredPos.current, 1.5);
+      lookTarget.current.set(b.x + leadX * 0.5, 1.2, b.z + leadZ * 0.5);
       return;
     }
 
     // ---- standard coverage rotation, durations tuned per shot ----
-    const ROTATION: { name: string; dur: number }[] = [
-      { name: 'wide', dur: 7 },
-      { name: 'lowTouch', dur: 4.5 },
-      { name: 'steadicam', dur: 4 },
-      { name: 'crane', dur: 6.5 },
-      { name: 'orbitBall', dur: 5 },
+    const ROTATION: { name: string; dur: number; fov: number }[] = [
+      { name: 'wide', dur: 8, fov: 33 },
+      { name: 'lowTouch', dur: 5.5, fov: 29 },
+      { name: 'steadicam', dur: 4.5, fov: 42 },
+      { name: 'crane', dur: 7, fov: 38 },
+      { name: 'orbitBall', dur: 5.5, fov: 44 },
     ];
     const idx = Math.max(
       0,
@@ -436,32 +475,44 @@ function AutoMode() {
     const inRotation = ROTATION.some((r) => r.name === sh.name);
     if (!inRotation || t - sh.start > cur.dur || t < sh.start) {
       const next = inRotation ? ROTATION[(idx + 1) % ROTATION.length] : ROTATION[0];
-      cutTo(next.name);
+      cutTo(next.name, next.fov);
     }
 
     switch (sh.name) {
-      case 'lowTouch': // pitch-level dolly along the near touchline
-        desiredPos.current.set(b.x * 0.78, 1.7, -(wid * 0.5 + 7.5));
-        lookTarget.current.set(b.x, 1.0, b.z);
+      case 'lowTouch': // pitch-level long-lens dolly from the near runoff
+        desiredPos.current.set(b.x * 0.8, 1.5, -(wid * 0.5 + pad * 0.8));
+        lookTarget.current.set(b.x + leadX, 1.0, b.z + leadZ * 0.4);
         break;
       case 'steadicam': // tight, moving with the play
-        desiredPos.current.set(b.x + 11, 2.4, b.z + 11);
-        lookTarget.current.set(b.x, 1.2, b.z);
+        desiredPos.current.set(b.x + 9, 2.3, b.z + 9);
+        clampBowl(desiredPos.current, 1.6);
+        lookTarget.current.set(b.x + leadX, 1.2, b.z + leadZ);
         break;
-      case 'crane': // high behind the goal the play is moving toward
-        desiredPos.current.set((b.x >= 0 ? 1 : -1) * len * 0.56, 15, b.z * 0.45);
-        lookTarget.current.set(b.x * 0.6, 1.5, b.z * 0.6);
-        break;
-      case 'orbitBall': {
-        // slow orbital drift around the ball
-        const ang = t * 0.16;
-        desiredPos.current.set(b.x + Math.sin(ang) * 13, 4.5, b.z + Math.cos(ang) * 13);
-        lookTarget.current.set(b.x, 1.1, b.z);
+      case 'crane': {
+        // high over the end runoff (a spidercam post), slowly descending
+        const gx = b.x >= 0 ? 1 : -1;
+        desiredPos.current.set(
+          gx * (len * 0.5 + pad * 0.9),
+          13.5 - Math.min(life * 0.3, 2.5),
+          b.z * 0.5
+        );
+        lookTarget.current.set(b.x * 0.65 + leadX, 1.4, b.z * 0.65 + leadZ);
         break;
       }
-      default: // wide — the classic broadcast frame
-        desiredPos.current.set(b.x * 0.5, len * 0.22, -(wid * 0.5 + len * 0.26));
-        lookTarget.current.set(b.x * 0.8, 2, b.z * 0.4);
+      case 'orbitBall': {
+        // slow orbital drift around the ball
+        const ang = t * 0.14;
+        desiredPos.current.set(b.x + Math.sin(ang) * 12, 4.2, b.z + Math.cos(ang) * 12);
+        clampBowl(desiredPos.current, 2.2);
+        lookTarget.current.set(b.x + leadX * 0.6, 1.1, b.z + leadZ * 0.6);
+        break;
+      }
+      default: {
+        // wide — the master gantry, above the stand tops with a slow push-in
+        const push = Math.min(life * 0.35, 3);
+        desiredPos.current.set(b.x * 0.45, len * 0.2 - push * 0.4, -(wid * 0.5 + len * 0.22) + push);
+        lookTarget.current.set(b.x * 0.8 + leadX, 1.8, b.z * 0.35 + leadZ * 0.5);
+      }
     }
     void delta;
   }

@@ -33,8 +33,6 @@ interface ClockState {
   playing: boolean;
   speed: number;
   duration: number;
-  /** dead stretches the clock jumps over while playing (see MatchIR.deadSpans) */
-  deadSpans: [number, number][];
   /** throttled copy of playhead.t for UI display (~15Hz) */
   uiT: number;
 
@@ -58,7 +56,6 @@ interface ClockState {
 
   // actions
   setDuration: (d: number) => void;
-  setDeadSpans: (s: [number, number][]) => void;
   play: () => void;
   pause: () => void;
   toggle: () => void;
@@ -84,7 +81,6 @@ export const useClock = create<ClockState>((set, get) => ({
   playing: false,
   speed: 1,
   duration: 0,
-  deadSpans: [],
   uiT: 0,
 
   cameraMode: 'broadcast',
@@ -101,7 +97,6 @@ export const useClock = create<ClockState>((set, get) => ({
   soundOn: true,
 
   setDuration: (d) => set({ duration: d }),
-  setDeadSpans: (s) => set({ deadSpans: s }),
   play: () => set({ playing: true }),
   pause: () => set({ playing: false }),
   toggle: () => set((s) => ({ playing: !s.playing })),

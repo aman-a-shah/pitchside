@@ -15,7 +15,6 @@ import { useEffect, useState } from 'react';
 import { useMatch } from '@/state/match';
 import { CameraMode, playhead, useClock } from '@/state/clock';
 import {
-  IconAsk,
   IconBroadcast,
   IconChevronUp,
   IconCinematic,
@@ -68,7 +67,6 @@ export default function ControlBar() {
   const statsOpen = useClock((s) => s.statsOpen);
   const rosterOpen = useClock((s) => s.rosterOpen);
   const shortcutsOpen = useClock((s) => s.shortcutsOpen);
-  const askOpen = useClock((s) => s.askOpen);
   const showTactical = useClock((s) => s.showTactical);
 
   const toggle = useClock((s) => s.toggle);
@@ -79,7 +77,6 @@ export default function ControlBar() {
   const setStatsOpen = useClock((s) => s.setStatsOpen);
   const setRosterOpen = useClock((s) => s.setRosterOpen);
   const setShortcutsOpen = useClock((s) => s.setShortcutsOpen);
-  const setAskOpen = useClock((s) => s.setAskOpen);
   const toggleTactical = useClock((s) => s.toggleTactical);
   const play = useClock((s) => s.play);
 
@@ -193,15 +190,6 @@ export default function ControlBar() {
       </div>
 
       <div className={styles.group}>
-        <button
-          className={`${styles.btn} ${styles.cam} ${askOpen ? styles.btnActive : ''}`}
-          onClick={() => setAskOpen(!askOpen)}
-          title="Ask the match (⌘K)"
-          aria-pressed={askOpen}
-        >
-          <IconAsk size={17} />
-          <span className={styles.label}>Ask</span>
-        </button>
         <button
           className={`${styles.btn} ${statsOpen ? styles.btnActive : ''}`}
           onClick={() => setStatsOpen(!statsOpen)}
