@@ -9,7 +9,7 @@ and watch it through the players' eyes.
 Built with **Next.js + React Three Fiber + three.js** on **StatsBomb Open Data** (~4,000 real
 matches). Runs in the browser; every environment, character and material is procedural.
 
-![Football](docs/soccer.png)
+![PitchSide — step inside the game](docs/screenshots/hero-step-inside.jpg)
 
 ## What it does
 
@@ -35,6 +35,31 @@ matches). Runs in the browser; every environment, character and material is proc
 - **Full playback control**: play / pause / scrub / 0.25×–8× / frame-step, an event-marked
   timeline, live commentary feed, tactical minimap, match stats, and an approximate-sync
   YouTube footage panel for side-by-side reconstruction-vs-reality.
+
+## Inside a match
+
+![Broadcast camera — Argentina vs France under the Lusail lights](docs/screenshots/match-broadcast.jpg)
+
+*The 2022 World Cup final in the broadcast camera: scoreboard, event-marked timeline,
+live commentary feed and tactical minimap, all driven by the real event stream.*
+
+| ![Player camera](docs/screenshots/match-player-cam.jpg) | ![Orbit camera](docs/screenshots/match-orbit.jpg) |
+| :--: | :--: |
+| **Player cam** — pitch level, following a chosen player (or riding possession) | **Orbit cam** — grab the action from any angle |
+
+| ![Fly camera](docs/screenshots/match-fly.jpg) | ![Match stats](docs/screenshots/match-stats.jpg) |
+| :--: | :--: |
+| **Fly cam** — free flight anywhere in the stadium | **95th minute, 2–2** — live match stats and the commentary feed, derived from the real events |
+
+## The library
+
+| ![Landing — marquee match](docs/screenshots/landing-main-event.jpg) | ![How a match is rebuilt](docs/screenshots/landing-how-rebuilt.jpg) |
+| :--: | :--: |
+| The marquee match — every one of the final's ~4,400 real events | Events → trajectories → physics → render |
+
+| ![Competition shelves](docs/screenshots/library-competitions.jpg) | ![The archive](docs/screenshots/archive.jpg) |
+| :--: | :--: |
+| Programme-guide shelves per competition | The full archive: ~4,000 matches, searchable and filterable |
 
 ## Running
 
@@ -91,6 +116,8 @@ makes the director's time-travel replays and ⌘K seeks trivially safe.
 Everything on the critical path is static or client-side: the match index, the baked audio and
 the ⌘K grammar all work with no keys and no network beyond the (CORS-enabled, cacheable)
 StatsBomb event files. The Claude route is a progressive enhancement that degrades silently.
+
+![Every match leaves a record](docs/screenshots/hero-record.jpg)
 
 ## Data & attribution
 
