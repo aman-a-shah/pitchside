@@ -139,7 +139,7 @@ export default function UnityView({
       matchSent = true;
       instance.SendMessage('MatchRunner', 'SetMatch', buildSetupJson(modelRef.current));
       const st = useClock.getState();
-      instance.SendMessage('MatchRunner', 'SetCameraMode', st.cameraMode);
+      instance.SendMessage('MatchRunner', 'SetCameraMode', unityCameraMode(st));
       instance.SendMessage('MatchRunner', 'SetFollow', followSlot(st.followId));
       if (!announcedReady) {
         announcedReady = true;
@@ -153,14 +153,19 @@ export default function UnityView({
       return idx >= 0 && idx < MAX_ENTITIES ? idx : -1;
     };
 
+    // Unity's protocol predates the merged player cam: it still speaks
+    // 'pov' (first person) vs 'player' (third person) as separate modes
+    const unityCameraMode = (st: { cameraMode: string; povView: string }): string =>
+      st.cameraMode === 'player' && st.povView === 'first' ? 'pov' : st.cameraMode;
+
     const onUnityReady = () => trySendMatch();
     window.addEventListener('pitchside-unity-ready', onUnityReady);
 
     // HUD → Unity: camera mode + follow target
     const unsubClock = useClock.subscribe((st, prev) => {
       if (!instance || !matchSent) return;
-      if (st.cameraMode !== prev.cameraMode)
-        instance.SendMessage('MatchRunner', 'SetCameraMode', st.cameraMode);
+      if (st.cameraMode !== prev.cameraMode || st.povView !== prev.povView)
+        instance.SendMessage('MatchRunner', 'SetCameraMode', unityCameraMode(st));
       if (st.followId !== prev.followId)
         instance.SendMessage('MatchRunner', 'SetFollow', followSlot(st.followId));
     });

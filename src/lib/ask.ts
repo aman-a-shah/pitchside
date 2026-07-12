@@ -18,13 +18,20 @@ import type { MatchModel } from '@/state/match';
 import type { Entity, MatchEvent, MatchIR, TeamInfo } from '@/ir/types';
 import { broadcastClock } from '@/lib/format';
 
+/**
+ * 'pov' survives here as a plan-level alias (the LLM route and the local
+ * grammar both speak it); the executor maps it to the player cam in first
+ * person. 'player' means the player cam in third person.
+ */
+export type AskCamera = CameraMode | 'pov';
+
 export interface AskPlan {
   ok: boolean;
   /** human-readable interpretation shown before/after executing */
   label: string;
   seekT?: number;
   follow?: string;
-  camera?: CameraMode;
+  camera?: AskCamera;
   speed?: number;
   play?: boolean;
 }
@@ -78,7 +85,7 @@ function applyAliases(matchId: string, q: string): string {
 
 // ------------------------------ sub-parsers -----------------------------------
 
-function parseCamera(q: string): CameraMode | undefined {
+function parseCamera(q: string): AskCamera | undefined {
   if (/\bpov\b|first.person|through .{0,24}eyes|\bhis eyes\b|\bher eyes\b/.test(q)) return 'pov';
   if (/\bdirector\b|\bcinematic\b|auto.?cam|\btv mode\b/.test(q)) return 'cinematic';
   if (/\bbroadcast\b|\btv\b/.test(q)) return 'broadcast';

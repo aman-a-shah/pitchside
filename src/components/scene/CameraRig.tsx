@@ -132,6 +132,7 @@ function AutoMode() {
   const { ir } = useMatch();
   const { camera } = useThree();
   const mode = useClock((st) => st.cameraMode);
+  const povView = useClock((st) => st.povView);
   const followId = useClock((st) => st.followId);
 
   const ball = useRef(new THREE.Vector3());
@@ -146,18 +147,18 @@ function AutoMode() {
 
   // cinematic director state
   const shotRef = useRef({ name: '', start: 0 });
-  // POV state: current body + when we last re-evaluated who has the ball
+  // player cam state: current body + when we last re-evaluated who has the ball
   const povRef = useRef({ id: null as string | null, checked: -1 });
 
   useEffect(() => {
     initialized.current = false;
-  }, [mode, followId]);
+  }, [mode, povView, followId]);
 
-  // entering/leaving POV: widen the lens to a human field of view, and always
-  // clear the hidden-body channel on the way out
+  // entering/leaving first person: widen the lens to a human field of view,
+  // and always clear the hidden-body channel on the way out
   useEffect(() => {
     const persp = camera as THREE.PerspectiveCamera;
-    if (mode === 'pov') {
+    if (mode === 'player' && povView === 'first') {
       persp.fov = 68;
       persp.updateProjectionMatrix();
     }
@@ -167,7 +168,7 @@ function AutoMode() {
       persp.fov = 40;
       persp.updateProjectionMatrix();
     };
-  }, [mode, camera]);
+  }, [mode, povView, camera]);
 
   /** the player nearest the ball right now (POV auto-follow of possession) */
   function nearestToBall(t: number): string | null {
@@ -204,26 +205,12 @@ function AutoMode() {
         desiredPos.current.set(ball.current.x * 0.55, len * 0.2, sideZ);
         lookTarget.current.set(ball.current.x * 0.85, 2, ball.current.z * 0.4);
       }
-    } else if (mode === 'player' && followId && ir.tracks[followId]) {
-      const tr = ir.tracks[followId];
-      sampleTrack(tr, t, s);
-      ent.current.set(s.x, s.y, s.z);
-      const back = new THREE.Vector3(-Math.sin(s.heading), 0, -Math.cos(s.heading));
-      desiredPos.current
-        .copy(ent.current)
-        .addScaledVector(back, 6)
-        .add(new THREE.Vector3(0, 3.1, 0));
-      // look a little ahead of the player toward where they face
-      const fwd = new THREE.Vector3(Math.sin(s.heading), 0, Math.cos(s.heading));
-      lookTarget.current.copy(ent.current).addScaledVector(fwd, 6).setY(1.4);
-      lerpPos = 0.12;
-      lerpLook = 0.14;
-    } else if (mode === 'pov') {
-      // ---- through the player's eyes ----
+    } else if (mode === 'player') {
+      // ---- the player cam: one target, two views ----
       const pv = povRef.current;
-      // pinned to the followed player if one is chosen; otherwise ride
-      // possession, re-checked twice a second (sticky between checks so the
-      // view doesn't ping-pong in a crowded midfield)
+      // pinned to the chosen player; otherwise ride possession, re-checked
+      // twice a second (sticky between checks so the view doesn't ping-pong
+      // in a crowded midfield)
       if (followId && ir.tracks[followId]) {
         pv.id = followId;
       } else if (Math.abs(t - pv.checked) > 0.5 || !pv.id) {
@@ -231,31 +218,46 @@ function AutoMode() {
         pv.id = nearestToBall(t) ?? pv.id;
       }
       const tr = pv.id ? ir.tracks[pv.id] : undefined;
-      povTarget.id = tr ? pv.id : null;
+      // hide the body only when we're inside it
+      povTarget.id = tr && povView === 'first' ? pv.id : null;
       if (tr) {
         sampleTrack(tr, t, s);
-        // eye height plus a subtle stride bob (match-time driven: freezes on
-        // pause, slows in slow-mo, exactly like the athletes)
-        const bob = Math.sin(t * 9) * 0.018 * Math.min(1, s.speed / 4);
-        desiredPos.current.set(s.x, 1.72 + bob, s.z);
-        // a footballer's gaze: the ball when it's away from the feet, the
-        // pitch ahead when carrying it
-        const dBall = Math.hypot(ball.current.x - s.x, ball.current.z - s.z);
-        if (dBall > 1.4) {
-          lookTarget.current.set(
-            ball.current.x,
-            Math.max(ball.current.y, 0.4),
-            ball.current.z
-          );
+        if (povView === 'first') {
+          // eye height plus a subtle stride bob (match-time driven: freezes on
+          // pause, slows in slow-mo, exactly like the athletes)
+          const bob = Math.sin(t * 9) * 0.018 * Math.min(1, s.speed / 4);
+          desiredPos.current.set(s.x, 1.72 + bob, s.z);
+          // a footballer's gaze: the ball when it's away from the feet, the
+          // pitch ahead when carrying it
+          const dBall = Math.hypot(ball.current.x - s.x, ball.current.z - s.z);
+          if (dBall > 1.4) {
+            lookTarget.current.set(
+              ball.current.x,
+              Math.max(ball.current.y, 0.4),
+              ball.current.z
+            );
+          } else {
+            lookTarget.current.set(
+              s.x + Math.sin(s.heading) * 9,
+              1.5,
+              s.z + Math.cos(s.heading) * 9
+            );
+          }
+          lerpPos = 0.5; // eyes track the body tightly — lag here reads as seasick
+          lerpLook = 0.16;
         } else {
-          lookTarget.current.set(
-            s.x + Math.sin(s.heading) * 9,
-            1.5,
-            s.z + Math.cos(s.heading) * 9
-          );
+          // third person: behind the player's shoulder, looking past them
+          ent.current.set(s.x, s.y, s.z);
+          const back = new THREE.Vector3(-Math.sin(s.heading), 0, -Math.cos(s.heading));
+          desiredPos.current
+            .copy(ent.current)
+            .addScaledVector(back, 6)
+            .add(new THREE.Vector3(0, 3.1, 0));
+          const fwd = new THREE.Vector3(Math.sin(s.heading), 0, Math.cos(s.heading));
+          lookTarget.current.copy(ent.current).addScaledVector(fwd, 6).setY(1.4);
+          lerpPos = 0.12;
+          lerpLook = 0.14;
         }
-        lerpPos = 0.5; // eyes track the body tightly — lag here reads as seasick
-        lerpLook = 0.16;
       }
     } else {
       // cinematic director

@@ -1,22 +1,33 @@
 'use client';
 
 /**
- * RosterPopover — pick exactly who to follow instead of blind-cycling with F.
- * Two kit-headed team columns anchored above the Follow button. Hovering a
- * row previews the player on the tactical radar (dashed ring via selectedId);
- * clicking locks the follow camera to them.
+ * PlayerCamPopover — configures the player cam in one place: the view
+ * (first person, through their eyes / third person, behind them) and the
+ * target (auto = whoever is nearest the ball, or an exact player). Anchored
+ * above the Player segment in the dock. Hovering a row previews the player
+ * on the tactical radar (dashed ring via selectedId); clicking locks the
+ * cam to them. Picking a target closes the popover; flipping the view
+ * doesn't — you're expected to want both.
  */
 
 import { useEffect, useRef } from 'react';
 import { useMatch } from '@/state/match';
-import { useClock } from '@/state/clock';
+import { PovView, useClock } from '@/state/clock';
+import { IconFollow, IconPov } from './Icons';
 import styles from './hud.module.css';
 
-export default function RosterPopover() {
+const VIEWS: { view: PovView; label: string; hint: string; Icon: typeof IconPov }[] = [
+  { view: 'third', label: 'Third person', hint: 'behind the player', Icon: IconFollow },
+  { view: 'first', label: 'First person', hint: 'through their eyes', Icon: IconPov },
+];
+
+export default function PlayerCamPopover() {
   const { ir, players } = useMatch();
   const open = useClock((s) => s.rosterOpen);
   const followId = useClock((s) => s.followId);
+  const povView = useClock((s) => s.povView);
   const setRosterOpen = useClock((s) => s.setRosterOpen);
+  const setPovView = useClock((s) => s.setPovView);
   const setFollow = useClock((s) => s.setFollow);
   const select = useClock((s) => s.select);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -52,12 +63,13 @@ export default function RosterPopover() {
             onMouseLeave={() => select(null)}
             onFocus={() => select(p.id)}
             onClick={() => {
+              // clicking the locked player releases back to auto
               setFollow(followId === p.id ? null : p.id);
               setRosterOpen(false);
             }}
           >
             <i className={styles.rosterNum} style={{ color: kitVar }}>
-              {p.number != null ? `#${p.number}` : '—'}
+              {p.number != null ? p.number : '—'}
             </i>
             <span className={styles.rosterName}>{p.name ?? p.id}</span>
             <span className={styles.rosterPos}>{p.position}</span>
@@ -68,13 +80,43 @@ export default function RosterPopover() {
   };
 
   return (
-    <div className={styles.roster} ref={rootRef} role="menu" aria-label="Follow a player">
+    <div className={styles.roster} ref={rootRef} role="menu" aria-label="Player cam">
+      <div className={styles.viewToggle} role="group" aria-label="View">
+        {VIEWS.map(({ view, label, hint, Icon }) => (
+          <button
+            key={view}
+            className={styles.viewOpt}
+            data-on={povView === view || undefined}
+            onClick={() => setPovView(view)}
+            aria-pressed={povView === view}
+          >
+            <Icon size={15} />
+            <span>
+              {label}
+              <em>{hint}</em>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <button
+        className={`${styles.rosterRow} ${styles.rosterAuto}`}
+        data-on={!followId || undefined}
+        onClick={() => {
+          setFollow(null);
+          setRosterOpen(false);
+        }}
+      >
+        <i className={styles.rosterNum}>◉</i>
+        <span className={styles.rosterName}>Auto</span>
+        <span className={styles.rosterPos}>nearest the ball</span>
+      </button>
+
       <div className={styles.rosterHead}>
         <span className={styles.rosterTeam}>
           <i style={{ background: 'var(--home-legible)' }} />
           {home.short}
         </span>
-        <span className={styles.rosterTitle}>Follow</span>
         <span className={styles.rosterTeam}>
           {away.short}
           <i style={{ background: 'var(--away-legible)' }} />

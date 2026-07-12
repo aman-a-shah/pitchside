@@ -10,7 +10,9 @@
 
 import { create } from 'zustand';
 
-export type CameraMode = 'orbit' | 'fly' | 'broadcast' | 'player' | 'cinematic' | 'pov';
+export type CameraMode = 'orbit' | 'fly' | 'broadcast' | 'player' | 'cinematic';
+/** player cam view: through the player's eyes, or the follow cam behind them */
+export type PovView = 'first' | 'third';
 
 /** Mutable, non-reactive playhead. Scene + driver read/write this directly. */
 export const playhead = {
@@ -37,6 +39,9 @@ interface ClockState {
   uiT: number;
 
   cameraMode: CameraMode;
+  /** player cam: first person (their eyes) or third person (behind them) */
+  povView: PovView;
+  /** player cam target; null = auto (whoever is nearest the ball) */
   followId: string | null;
   selectedId: string | null;
   /** director mode is re-running a goal in slow motion (drives the REPLAY badge) */
@@ -62,6 +67,7 @@ interface ClockState {
   setSpeed: (s: number) => void;
   setUiT: (t: number) => void;
   setCameraMode: (m: CameraMode) => void;
+  setPovView: (v: PovView) => void;
   setFollow: (id: string | null) => void;
   setReplayActive: (v: boolean) => void;
   select: (id: string | null) => void;
@@ -82,6 +88,7 @@ export const useClock = create<ClockState>((set, get) => ({
   uiT: 0,
 
   cameraMode: 'broadcast',
+  povView: 'third',
   followId: null,
   selectedId: null,
   replayActive: false,
@@ -109,10 +116,13 @@ export const useClock = create<ClockState>((set, get) => ({
   setSpeed: (s) => set({ speed: s }),
   setUiT: (t) => set({ uiT: t }),
   setCameraMode: (m) => set({ cameraMode: m }),
+  setPovView: (v) => set({ povView: v }),
+  // picking a target means "watch this player" — enter the player cam if we
+  // aren't in it; clearing the target (auto) keeps the cam on possession
   setFollow: (id) =>
     set((s) => ({
       followId: id,
-      cameraMode: id ? 'player' : s.cameraMode === 'player' ? 'broadcast' : s.cameraMode,
+      cameraMode: id ? 'player' : s.cameraMode,
     })),
   select: (id) => set({ selectedId: id }),
   setReplayActive: (v) => set({ replayActive: v }),

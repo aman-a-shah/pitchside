@@ -99,7 +99,7 @@ export function useHudKeys() {
           s.setCameraMode('cinematic');
           break;
         case 'Digit3':
-          s.setCameraMode('pov');
+          s.setCameraMode('player');
           break;
         case 'Digit4':
           s.setCameraMode('orbit');
@@ -111,14 +111,21 @@ export function useHudKeys() {
           if (e.shiftKey) toggleFullscreen();
           else if (!flying) cycleFollow();
           break;
+        case 'KeyV':
+          // flip first/third person; entering the player cam if needed
+          if (!flying) {
+            if (s.cameraMode === 'player') {
+              s.setPovView(s.povView === 'first' ? 'third' : 'first');
+            } else {
+              s.setCameraMode('player');
+            }
+          }
+          break;
         case 'KeyS':
           if (!flying) s.setStatsOpen(!s.statsOpen);
           break;
         case 'KeyT':
           s.toggleTactical();
-          break;
-        case 'KeyM':
-          s.toggleSound();
           break;
       }
     };

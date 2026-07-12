@@ -20,7 +20,17 @@ import styles from './hud.module.css';
 function execute(plan: AskPlan) {
   const s = useClock.getState();
   if (plan.follow) s.setFollow(plan.follow);
-  if (plan.camera) s.setCameraMode(plan.camera);
+  // plan-level aliases: 'pov' = player cam through their eyes,
+  // 'player' = player cam from behind
+  if (plan.camera === 'pov') {
+    s.setPovView('first');
+    s.setCameraMode('player');
+  } else if (plan.camera === 'player') {
+    s.setPovView('third');
+    s.setCameraMode('player');
+  } else if (plan.camera) {
+    s.setCameraMode(plan.camera);
+  }
   if (plan.speed !== undefined) s.setSpeed(plan.speed);
   if (plan.seekT !== undefined) s.seek(plan.seekT);
   if (plan.play || plan.speed !== undefined) s.play();

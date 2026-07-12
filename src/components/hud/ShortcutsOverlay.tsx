@@ -20,7 +20,6 @@ const GROUPS: { title: string; rows: [string[], string][] }[] = [
       [[',', '.'], 'Step one frame'],
       [['⌘', 'K'], 'Ask the match'],
       [['S'], 'Match stats'],
-      [['M'], 'Sound on / off'],
     ],
   },
   {
@@ -28,9 +27,10 @@ const GROUPS: { title: string; rows: [string[], string][] }[] = [
     rows: [
       [['1'], 'Broadcast'],
       [['2'], 'Director (auto-cut TV)'],
-      [['3'], 'POV — a player’s eyes'],
+      [['3'], 'Player cam (auto or pick a player)'],
       [['4'], 'Orbit'],
       [['5'], 'Fly'],
+      [['V'], 'First ↔ third person'],
       [['F'], 'Follow next player'],
       [['T'], 'Tactical radar'],
     ],

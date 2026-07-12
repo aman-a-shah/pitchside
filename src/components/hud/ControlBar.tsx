@@ -3,8 +3,12 @@
 /**
  * ControlBar — the transport dock. Keyboard shortcuts live in useHudKeys
  * (mounted once by MatchView), not here. Layout contract, left → right:
- * transport · speed · [spacer] · cameras · follow(+roster) · stats · footage
- * · tactical · fullscreen · help.
+ * transport · speed · [spacer] · cameras (incl. player cam + its popover)
+ * · ask · stats · footage · tactical · fullscreen · help.
+ *
+ * The player cam replaces the old separate POV + Follow buttons: one camera,
+ * two views (first/third person), one target (auto = possession, or a picked
+ * player). All of it configured from the PlayerCamPopover.
  */
 
 import { useEffect, useState } from 'react';
@@ -13,6 +17,7 @@ import { CameraMode, playhead, useClock } from '@/state/clock';
 import {
   IconAsk,
   IconBroadcast,
+  IconChevronUp,
   IconCinematic,
   IconCollapse,
   IconExpand,
@@ -28,11 +33,9 @@ import {
   IconRestart,
   IconBack5,
   IconFwd5,
-  IconSoundOff,
-  IconSoundOn,
   IconStats,
 } from './Icons';
-import RosterPopover from './RosterPopover';
+import PlayerCamPopover from './RosterPopover';
 import { toggleFullscreen } from './useHudKeys';
 import styles from './hud.module.css';
 
@@ -41,23 +44,31 @@ const SPEEDS = [0.25, 1, 2, 4, 8];
 const CAMERAS: { mode: CameraMode; label: string; Icon: (p: { size?: number }) => JSX.Element }[] = [
   { mode: 'broadcast', label: 'Broadcast', Icon: IconBroadcast },
   { mode: 'cinematic', label: 'Director', Icon: IconCinematic },
-  { mode: 'pov', label: 'POV', Icon: IconPov },
+];
+const CAMERAS_AFTER: typeof CAMERAS = [
   { mode: 'orbit', label: 'Orbit', Icon: IconOrbit },
   { mode: 'fly', label: 'Fly', Icon: IconFly },
 ];
+const CAM_KEYS: Record<CameraMode, string> = {
+  broadcast: '1',
+  cinematic: '2',
+  player: '3',
+  orbit: '4',
+  fly: '5',
+};
 
 export default function ControlBar() {
   const { players, ir } = useMatch();
   const playing = useClock((s) => s.playing);
   const speed = useClock((s) => s.speed);
   const cameraMode = useClock((s) => s.cameraMode);
+  const povView = useClock((s) => s.povView);
   const followId = useClock((s) => s.followId);
   const videoOpen = useClock((s) => s.videoOpen);
   const statsOpen = useClock((s) => s.statsOpen);
   const rosterOpen = useClock((s) => s.rosterOpen);
   const shortcutsOpen = useClock((s) => s.shortcutsOpen);
   const askOpen = useClock((s) => s.askOpen);
-  const soundOn = useClock((s) => s.soundOn);
   const showTactical = useClock((s) => s.showTactical);
 
   const toggle = useClock((s) => s.toggle);
@@ -69,7 +80,6 @@ export default function ControlBar() {
   const setRosterOpen = useClock((s) => s.setRosterOpen);
   const setShortcutsOpen = useClock((s) => s.setShortcutsOpen);
   const setAskOpen = useClock((s) => s.setAskOpen);
-  const toggleSound = useClock((s) => s.toggleSound);
   const toggleTactical = useClock((s) => s.toggleTactical);
   const play = useClock((s) => s.play);
 
@@ -81,7 +91,27 @@ export default function ControlBar() {
   }, []);
 
   const hasVideo = !!ir.meta.videos?.length;
+  const playerCamOn = cameraMode === 'player';
   const followed = followId ? players.find((p) => p.id === followId) : null;
+  const PlayerIcon = povView === 'first' ? IconPov : IconFollow;
+  const playerLabel = playerCamOn
+    ? followed
+      ? `${followed.number != null ? `${followed.number} · ` : ''}${followed.name ?? ''}`
+      : 'Auto'
+    : 'Player';
+
+  const camSeg = (c: (typeof CAMERAS)[number]) => (
+    <button
+      key={c.mode}
+      className={`${styles.camSeg} ${cameraMode === c.mode ? styles.camSegOn : ''}`}
+      onClick={() => setCameraMode(c.mode)}
+      title={`${c.label} (${CAM_KEYS[c.mode]})`}
+      aria-pressed={cameraMode === c.mode}
+    >
+      <c.Icon size={16} />
+      <span className={styles.label}>{c.label}</span>
+    </button>
+  );
 
   return (
     <div className={styles.controls}>
@@ -115,8 +145,7 @@ export default function ControlBar() {
         </button>
       </div>
 
-      <div className={`${styles.group} ${styles.segment}`}>
-        <span className={styles.segLabel}>Speed</span>
+      <div className={styles.segment} role="group" aria-label="Playback speed">
         {SPEEDS.map((sp) => (
           <button
             key={sp}
@@ -134,40 +163,33 @@ export default function ControlBar() {
 
       <div className={styles.spacer} />
 
-      <div className={styles.group}>
-        {CAMERAS.map((c) => (
-          <button
-            key={c.mode}
-            className={`${styles.btn} ${styles.cam} ${
-              cameraMode === c.mode ? styles.btnActive : ''
-            }`}
-            onClick={() => setCameraMode(c.mode)}
-            title={`${c.label} (${CAMERAS.indexOf(c) + 1})`}
-            aria-pressed={cameraMode === c.mode}
-          >
-            <c.Icon size={17} />
-            <span className={styles.label}>{c.label}</span>
-          </button>
-        ))}
+      <div className={styles.segment} role="group" aria-label="Camera">
+        {CAMERAS.map(camSeg)}
         <span className={styles.anchor}>
           <button
-            className={`${styles.btn} ${styles.cam} ${
-              cameraMode === 'player' || rosterOpen ? styles.btnActive : ''
+            className={`${styles.camSeg} ${styles.playerSeg} ${
+              playerCamOn ? styles.camSegOn : ''
             }`}
-            onClick={() => setRosterOpen(!rosterOpen)}
-            title="Follow a player (F cycles)"
-            aria-pressed={cameraMode === 'player'}
+            onClick={() => {
+              if (!playerCamOn) {
+                setCameraMode('player');
+                setRosterOpen(true);
+              } else {
+                setRosterOpen(!rosterOpen);
+              }
+            }}
+            title="Player cam — first or third person, any player (3 · V flips view · F cycles)"
+            aria-pressed={playerCamOn}
             aria-expanded={rosterOpen}
+            aria-haspopup="menu"
           >
-            <IconFollow size={17} />
-            <span className={styles.label}>
-              {cameraMode === 'player' && followed
-                ? `#${followed.number ?? ''} ${followed.name ?? ''}`
-                : 'Follow'}
-            </span>
+            <PlayerIcon size={16} />
+            <span className={styles.label}>{playerLabel}</span>
+            <IconChevronUp size={11} className={styles.segChev} />
           </button>
-          <RosterPopover />
+          <PlayerCamPopover />
         </span>
+        {CAMERAS_AFTER.map(camSeg)}
       </div>
 
       <div className={styles.group}>
@@ -181,34 +203,25 @@ export default function ControlBar() {
           <span className={styles.label}>Ask</span>
         </button>
         <button
-          className={`${styles.btn} ${styles.cam} ${statsOpen ? styles.btnActive : ''}`}
+          className={`${styles.btn} ${statsOpen ? styles.btnActive : ''}`}
           onClick={() => setStatsOpen(!statsOpen)}
           title="Match stats (S)"
           aria-pressed={statsOpen}
+          aria-label="Match stats"
         >
           <IconStats size={17} />
-          <span className={styles.label}>Stats</span>
         </button>
         {hasVideo && (
           <button
-            className={`${styles.btn} ${styles.cam} ${videoOpen ? styles.btnActive : ''}`}
+            className={`${styles.btn} ${videoOpen ? styles.btnActive : ''}`}
             onClick={() => setVideoOpen(!videoOpen)}
             title="Watch real footage"
             aria-pressed={videoOpen}
+            aria-label="Watch real footage"
           >
             <IconFootage size={17} />
-            <span className={styles.label}>Footage</span>
           </button>
         )}
-        <button
-          className={`${styles.btn} ${soundOn ? styles.btnActive : ''}`}
-          onClick={toggleSound}
-          title="Sound (M)"
-          aria-pressed={soundOn}
-          aria-label={soundOn ? 'Mute sound' : 'Unmute sound'}
-        >
-          {soundOn ? <IconSoundOn size={17} /> : <IconSoundOff size={17} />}
-        </button>
         <button
           className={`${styles.btn} ${styles.hideMobile} ${showTactical ? styles.btnActive : ''}`}
           onClick={toggleTactical}
