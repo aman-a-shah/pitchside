@@ -169,6 +169,8 @@ export interface MatchMeta {
   videos?: VideoRef[];
   /** mood/time-of-day for art direction */
   mood?: Mood;
+  /** film-stock era derived from the match date (see lib/era.ts) */
+  era?: 'archive' | 'technicolor' | 'vhs' | 'modern';
 }
 
 /** A time-stamped scoreboard snapshot; the HUD shows the latest one at or before t. */

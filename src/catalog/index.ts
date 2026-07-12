@@ -12,6 +12,7 @@
  */
 
 import { MatchIR, Mood, Sport } from '@/ir/types';
+import { Era, eraOf } from '@/lib/era';
 import {
   SBIndexMatch,
   loadEvents,
@@ -40,6 +41,7 @@ export interface CatalogEntry {
   venue?: string;
   date?: string;
   mood: Mood;
+  era: Era;
   teams: CatalogTeam[];
   /** real final score [home, away] */
   score: [number, number];
@@ -50,7 +52,12 @@ export interface CatalogEntry {
 
 // ------------------------------- mapping --------------------------------------
 
-export function moodOf(ko: string | null | undefined): Mood {
+export function moodOf(ko: string | null | undefined, date?: string | null): Mood {
+  // pre-VHS matches present in daylight — the era film grade is built for
+  // sunlit stock and floodlit night football is an anachronism there
+  // (mirrors the same rule in reconstruct.ts)
+  const era = eraOf(date);
+  if (era === 'archive' || era === 'technicolor') return 'day';
   const hour = ko ? parseInt(ko.slice(0, 2), 10) : 20;
   // evening kickoffs are floodlit affairs — by full time it's dark anyway
   return hour >= 17 || hour < 6 ? 'night' : hour >= 16 ? 'dusk' : 'day';
@@ -69,7 +76,8 @@ export function entryFromIndex(m: SBIndexMatch, blurb?: string, featured?: boole
     gender: m.g,
     venue: m.v ?? undefined,
     date: m.d,
-    mood: moodOf(m.ko),
+    mood: moodOf(m.ko, m.d),
+    era: eraOf(m.d),
     teams: [
       { name: m.h, short: teamCode(m.h), color: accentFor(m.h) },
       { name: m.a, short: teamCode(m.a), color: accentFor(m.a) },
@@ -95,6 +103,14 @@ export const FEATURED: CatalogEntry[] = [
     'The greatest final ever played — Messi twice, Mbappé’s hat-trick, penalties. Every one of its 4,400 real events, rebuilt under the Lusail lights.'
   ),
   F(
+    { id: 3750191, d: '1986-06-22', ko: '12:00:00.000', c: 'FIFA World Cup', cc: 'International', g: 'm', s: '1986', st: 'Quarter-finals', v: 'Estadio Azteca', h: 'Argentina', a: 'England', hg: 2, ag: 1 },
+    'The Hand of God and the Goal of the Century — four minutes apart. Stand on the Azteca pitch and watch both from anywhere you like.'
+  ),
+  F(
+    { id: 3888705, d: '1958-06-29', ko: '15:00:00.000', c: 'FIFA World Cup', cc: 'International', g: 'm', s: '1958', st: 'Final', v: 'Råsunda, Stockholm', h: 'Brazil', a: 'Sweden', hg: 5, ag: 2 },
+    'No complete film of this match survives. A 17-year-old Pelé scores twice in a World Cup final — reconstructed from the historical record, watchable nowhere else.'
+  ),
+  F(
     { id: 2302764, d: '2005-05-25', ko: '21:45:00.000', c: 'Champions League', cc: 'Europe', g: 'm', s: '2004/2005', st: 'Final', v: 'Atatürk Olimpiyat Stadı', h: 'AC Milan', a: 'Liverpool', hg: 3, ag: 3 },
     'Istanbul, 2005. Three down at half-time, level by the hour — the miracle, point by real point.'
   ),
@@ -113,6 +129,10 @@ export const FEATURED: CatalogEntry[] = [
   F(
     { id: 3888702, d: '1970-06-21', ko: '12:00:00.000', c: 'FIFA World Cup', cc: 'International', g: 'm', s: '1970', st: 'Final', v: 'Estadio Azteca', h: 'Brazil', a: 'Italy', hg: 4, ag: 1 },
     'The Azteca, 1970. Pelé opens it, Carlos Alberto ends it with the greatest team goal ever scored.'
+  ),
+  F(
+    { id: 3888720, d: '1974-07-07', ko: '16:00:00.000', c: 'FIFA World Cup', cc: 'International', g: 'm', s: '1974', st: 'Final', v: 'Olympiastadion München', h: 'Netherlands', a: 'Germany', hg: 1, ag: 2 },
+    'Munich, 1974. Cruyff wins a penalty before Germany touch the ball; total football meets its match.'
   ),
   F(
     { id: 3906390, d: '2023-08-20', ko: '20:00:00.000', c: "Women's World Cup", cc: 'International', g: 'f', s: '2023', st: 'Final', v: 'Accor Stadium', h: "Spain Women's", a: "England Women's", hg: 1, ag: 0 },

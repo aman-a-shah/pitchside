@@ -27,6 +27,7 @@ import {
   Track,
 } from '@/ir/types';
 import { createTrack } from '@/ir/sampler';
+import { eraOf } from '@/lib/era';
 import { SBEvent, SBIndexMatch, SBLineupTeam, SBRef } from './statsbomb';
 import { accentFor, kitsForFixture, teamCode } from './teamKits';
 
@@ -862,7 +863,18 @@ export function reconstructSoccerMatch(
   }));
 
   const koHour = meta.ko ? parseInt(meta.ko.slice(0, 2), 10) : 20;
-  const mood = koHour >= 17 || koHour < 6 ? 'night' : koHour >= 16 ? 'dusk' : 'day';
+  const era = eraOf(meta.d);
+  // pre-VHS matches render in daylight regardless of listed kickoff hour —
+  // floodlit night football is an anachronism on newsreel/16mm stock, and the
+  // era grade is built for sunlit film
+  const mood =
+    era === 'archive' || era === 'technicolor'
+      ? 'day'
+      : koHour >= 17 || koHour < 6
+        ? 'night'
+        : koHour >= 16
+          ? 'dusk'
+          : 'day';
 
   const stage = meta.st && meta.st !== 'Regular Season' ? ` — ${meta.st}` : '';
 
@@ -879,6 +891,7 @@ export function reconstructSoccerMatch(
       score,
       attribution: 'Data: StatsBomb Open Data',
       mood,
+      era,
     },
     fieldSpec: {
       type: 'soccer',

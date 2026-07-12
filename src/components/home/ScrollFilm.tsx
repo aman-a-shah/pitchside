@@ -127,10 +127,10 @@ export default function ScrollFilm({ featuredHref }: { featuredHref: string }) {
 
         {/* the three beats */}
         <div className={styles.beat} data-beat="a" aria-hidden>
-          <p className={styles.beatLine}>Real matches.</p>
+          <p className={styles.beatLine}>Every match leaves a record.</p>
         </div>
         <div className={styles.beat} data-beat="b" aria-hidden>
-          <p className={styles.beatLine}>Rebuilt as living, navigable worlds.</p>
+          <p className={styles.beatLine}>Even the ones no camera kept.</p>
         </div>
         <div className={styles.beat} data-beat="c">
           <h1 className={styles.title}>
@@ -139,8 +139,8 @@ export default function ScrollFilm({ featuredHref }: { featuredHref: string }) {
             the game.
           </h1>
           <p className={styles.subtitle}>
-            Pause on the goal. Rewind the break. Fly anywhere — it all renders in
-            real time.
+            A time machine for football — Pelé &rsquo;58 to Messi &rsquo;22, rebuilt in 3D
+            from the real record. Pause the goal. Rewind the break. Fly anywhere.
           </p>
           <div className={styles.ctaRow}>
             <Link href={featuredHref} className={styles.ctaPrimary}>

@@ -45,7 +45,7 @@ export default function Scene({ model }: { model: MatchModel }) {
       />
       <Entities />
       <CameraRig />
-      <PostFX mood={model.ir.meta.mood ?? 'night'} />
+      <PostFX mood={model.ir.meta.mood ?? 'night'} era={model.ir.meta.era ?? 'modern'} />
     </MatchProvider>
   );
 }
