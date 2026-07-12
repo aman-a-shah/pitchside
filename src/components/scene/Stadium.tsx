@@ -344,6 +344,10 @@ function Floodlights({ hl, hw, gap, depth, height }: { hl: number; hw: number; g
           new THREE.Vector3(0, -1, 0),
           dir
         );
+        // face the lamp head toward the pitch centre: yaw the +Z lamp normal
+        // to point inward, then rake the bank down at the centre spot
+        const yaw = Math.atan2(-x, -z);
+        const tilt = Math.atan2(towerH, Math.hypot(x, z));
         return (
           <group key={i} position={[x, 0, z]}>
             {/* lattice tower */}
@@ -351,27 +355,32 @@ function Floodlights({ hl, hw, gap, depth, height }: { hl: number; hw: number; g
               <cylinderGeometry args={[0.5, 0.9, towerH, 10]} />
               <meshStandardMaterial color="#22262e" roughness={0.55} metalness={0.4} />
             </mesh>
-            {/* lamp housing */}
-            <mesh position={[0, towerH, 0]}>
-              <boxGeometry args={[7, 3.4, 1.2]} />
-              <meshStandardMaterial color="#0c0e12" roughness={0.5} metalness={0.5} />
-            </mesh>
-            {/* bank of individual bright lamps */}
-            {[-2.3, -0.75, 0.75, 2.3].map((lx) =>
-              [-0.8, 0.8].map((ly, k) => (
-                <mesh key={`${lx}-${k}`} position={[lx, towerH + ly, 0.65]}>
-                  <boxGeometry args={[1.2, 1.2, 0.25]} />
-                  <meshStandardMaterial
-                    color="#ffffff"
-                    emissive="#fff7e0"
-                    emissiveIntensity={2.2}
-                    toneMapped={false}
-                  />
+            {/* lamp head — housing, lamp bank and halo pivot together */}
+            <group position={[0, towerH, 0]} rotation={[0, yaw, 0]}>
+              <group rotation={[tilt, 0, 0]}>
+                {/* lamp housing */}
+                <mesh>
+                  <boxGeometry args={[7, 3.4, 1.2]} />
+                  <meshStandardMaterial color="#0c0e12" roughness={0.5} metalness={0.5} />
                 </mesh>
-              ))
-            )}
-            {/* additive glow halo around the whole bank */}
-            <sprite position={[0, towerH, 1]} scale={[10, 7, 1]} material={haloMat} />
+                {/* bank of individual bright lamps */}
+                {[-2.3, -0.75, 0.75, 2.3].map((lx) =>
+                  [-0.8, 0.8].map((ly, k) => (
+                    <mesh key={`${lx}-${k}`} position={[lx, ly, 0.65]}>
+                      <boxGeometry args={[1.2, 1.2, 0.25]} />
+                      <meshStandardMaterial
+                        color="#ffffff"
+                        emissive="#fff7e0"
+                        emissiveIntensity={2.2}
+                        toneMapped={false}
+                      />
+                    </mesh>
+                  ))
+                )}
+                {/* additive glow halo around the whole bank */}
+                <sprite position={[0, 0, 1]} scale={[10, 7, 1]} material={haloMat} />
+              </group>
+            </group>
             {/* volumetric beam toward the pitch */}
             <group position={[0, towerH, 0]} quaternion={quat}>
               <mesh position={[0, -len * 0.5, 0]} material={beamMat}>
