@@ -23,7 +23,15 @@ export default function SceneCanvas({
         toneMapping: THREE.ACESFilmicToneMapping,
       }}
       camera={{ fov: 40, near: 0.5, far: 2200, position: [0, 34, 96] }}
-      onCreated={() => onReady?.()}
+      onCreated={(state) => {
+        // automation hook (same channel as clock/model) — headless QA reads
+        // camera pose to verify shot grammar and the first-person body feel
+        if (typeof window !== 'undefined') {
+          const w = window as unknown as { __pitchside?: Record<string, unknown> };
+          w.__pitchside = { ...(w.__pitchside ?? {}), camera: state.camera };
+        }
+        onReady?.();
+      }}
     >
       <Scene model={model} />
     </Canvas>

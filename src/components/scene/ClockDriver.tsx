@@ -25,10 +25,12 @@ export default function ClockDriver() {
     if (st.playing) {
       const d = Math.min(delta, 0.1); // guard against tab-refocus jumps
       let t = playhead.t + d * st.speed;
-      // jump over dead stretches (nothing happens on the pitch there)
+      // speed-ramp through dead stretches (free-kick setups, VAR, injuries)
+      // instead of hard-cutting: an instant jump reads as every player
+      // teleporting; at ~28× the skip reads as time passing
       for (const [s0, s1] of st.deadSpans) {
         if (t > s0 && t < s1) {
-          t = s1;
+          t = Math.min(s1, playhead.t + d * 28);
           break;
         }
       }

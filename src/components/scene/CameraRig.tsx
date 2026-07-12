@@ -129,7 +129,7 @@ function OrbitMode() {
 // --------------------------- broadcast / player / cinematic ------------------
 
 function AutoMode() {
-  const { ir } = useMatch();
+  const { ir, events } = useMatch();
   const { camera } = useThree();
   const mode = useClock((st) => st.cameraMode);
   const povView = useClock((st) => st.povView);
@@ -149,9 +149,24 @@ function AutoMode() {
   const shotRef = useRef({ name: '', start: 0 });
   // player cam state: current body + when we last re-evaluated who has the ball
   const povRef = useRef({ id: null as string | null, checked: -1 });
+  // first-person body feel: stride phase, turn-lean roll, sprint fov, kick jolt
+  const fpRef = useRef({
+    phase: 0,
+    lastT: null as number | null,
+    prevHead: null as number | null,
+    roll: 0,
+    fov: 68,
+    kick: 0,
+  });
 
   useEffect(() => {
     initialized.current = false;
+    const fp = fpRef.current;
+    fp.lastT = null;
+    fp.prevHead = null;
+    fp.roll = 0;
+    fp.fov = 68;
+    fp.kick = 0;
   }, [mode, povView, followId]);
 
   // entering/leaving first person: widen the lens to a human field of view,
@@ -223,12 +238,53 @@ function AutoMode() {
       if (tr) {
         sampleTrack(tr, t, s);
         if (povView === 'first') {
-          // eye height plus a subtle stride bob (match-time driven: freezes on
-          // pause, slows in slow-mo, exactly like the athletes)
-          const bob = Math.sin(t * 9) * 0.018 * Math.min(1, s.speed / 4);
-          desiredPos.current.set(s.x, 1.72 + bob, s.z);
+          // ---- being a body, not a drone: everything is match-time driven
+          // (freezes on pause, slows in slow-mo, exactly like the athletes) ----
+          const fp = fpRef.current;
+          // clock delta, zeroed across seeks/pause so state never jumps
+          const dtc =
+            fp.lastT === null || Math.abs(t - fp.lastT) > 0.5 ? 0 : Math.max(0, t - fp.lastT);
+          fp.lastT = t;
+
+          // stride-locked footsteps: cadence rises with speed; |sin| dips the
+          // eye at each footfall, sin sways the weight left/right between them
+          const stride = Math.min(1, s.speed / 3.2);
+          const stepHz = 1.5 + Math.min(s.speed, 8) * 0.22;
+          fp.phase += dtc * stepHz * Math.PI;
+          const breath = Math.sin(t * 1.8) * 0.006;
+          const bobY = (Math.abs(Math.sin(fp.phase)) - 0.6) * 0.06 * stride + breath;
+          const sway = Math.sin(fp.phase) * 0.03 * stride;
+          const rightX = Math.cos(s.heading);
+          const rightZ = -Math.sin(s.heading);
+
+          // the jolt of striking the ball — this body's own kicks, felt
+          fp.kick = 0;
+          {
+            let lo = 0;
+            let hi = events.length;
+            while (lo < hi) {
+              const mid = (lo + hi) >> 1;
+              if (events[mid].t < t - 0.35) lo = mid + 1;
+              else hi = mid;
+            }
+            for (let i = lo; i < events.length && events[i].t <= t; i++) {
+              const e = events[i];
+              if (e.actor !== pv.id) continue;
+              if (e.type === 'pass' || e.type === 'shot' || e.type === 'tackle' || e.type === 'clearance') {
+                const k = 1 - (t - e.t) / 0.35;
+                if (k > fp.kick) fp.kick = k;
+              }
+            }
+          }
+
+          desiredPos.current.set(
+            s.x + rightX * sway,
+            1.72 + bobY - fp.kick * 0.05,
+            s.z + rightZ * sway
+          );
+
           // a footballer's gaze: the ball when it's away from the feet, the
-          // pitch ahead when carrying it
+          // pitch ahead when carrying it (dipping toward the ball at pace)
           const dBall = Math.hypot(ball.current.x - s.x, ball.current.z - s.z);
           if (dBall > 1.4) {
             lookTarget.current.set(
@@ -239,10 +295,44 @@ function AutoMode() {
           } else {
             lookTarget.current.set(
               s.x + Math.sin(s.heading) * 9,
-              1.5,
+              1.5 - 0.35 * stride,
               s.z + Math.cos(s.heading) * 9
             );
           }
+          // eyes are never perfectly still — a slow scanning wander
+          lookTarget.current.x += Math.sin(t * 0.7 + 2.1) * 0.5;
+          lookTarget.current.y += Math.sin(t * 1.1 + 0.6) * 0.12;
+          lookTarget.current.z += Math.sin(t * 0.5 + 4.4) * 0.5;
+
+          // lean into direction changes, like carrying your own momentum
+          let headVel = 0;
+          if (fp.prevHead !== null && dtc > 1e-4) {
+            let dh = s.heading - fp.prevHead;
+            while (dh > Math.PI) dh -= Math.PI * 2;
+            while (dh < -Math.PI) dh += Math.PI * 2;
+            headVel = dh / dtc;
+          }
+          fp.prevHead = s.heading;
+          // kept subtle — roll is the first thing that reads as motion sickness
+          const lean = THREE.MathUtils.clamp(
+            -headVel * 0.018 * Math.min(1, s.speed / 2),
+            -0.04,
+            0.04
+          );
+          const stepRoll = Math.sin(fp.phase) * 0.004 * stride;
+          fp.roll += (lean + stepRoll - fp.roll) * Math.min(1, delta * 6);
+
+          // the lens is always faintly alive: a slow breathing swell, a
+          // stretch toward sprint pace, a punch when the ball is struck
+          const persp = camera as THREE.PerspectiveCamera;
+          const fovBreath = Math.sin(t * 0.9) * 0.7;
+          const fovTarget = 68 + fovBreath + 8 * Math.min(1, s.speed / 7) + fp.kick * 3;
+          fp.fov += (fovTarget - fp.fov) * Math.min(1, delta * 4);
+          if (Math.abs(persp.fov - fp.fov) > 0.01) {
+            persp.fov = fp.fov;
+            persp.updateProjectionMatrix();
+          }
+
           lerpPos = 0.5; // eyes track the body tightly — lag here reads as seasick
           lerpLook = 0.16;
         } else {
@@ -273,6 +363,12 @@ function AutoMode() {
       smoothLook.current.lerp(lookTarget.current, lerpLook);
     }
     camera.lookAt(smoothLook.current);
+    if (mode === 'player' && povView === 'first') {
+      // lookAt zeroes roll every frame — re-apply the body lean and, while a
+      // kick impulse is live, a fast decaying shudder
+      const fp = fpRef.current;
+      camera.rotateZ(fp.roll + fp.kick * Math.sin(t * 57) * 0.005);
+    }
   });
 
   /**
